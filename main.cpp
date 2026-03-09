@@ -295,21 +295,26 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0) {
         if (bytesRead < 0) {
-            cerr << "recv failed: " << WSAGetLastError() << endl;
+            // cerr << "recv failed: " << WSAGetLastError() << endl;
         }
         closesocket(clientSocket);
         return;
     }
 
     string request(buffer, bytesRead);
-    cout << "Received request from " << clientIP << endl;
-    cout << request << endl;
-
     // 解析HTTP请求
     size_t methodEnd = request.find(" ");
     size_t pathEnd = request.find(" ", methodEnd + 1);
-    string method = request.substr(0, methodEnd);
-    string path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
+    string method = "";
+    string path = "";
+    if (methodEnd != string::npos && pathEnd != string::npos) {
+        method = request.substr(0, methodEnd);
+        path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
+    }
+    // 只记录关键请求的日志
+    if (path == "/login" || path == "/send" || path == "/view") {
+        cout << "Request: " << path << " from " << clientIP << endl;
+    }
     string response;
 
     if (method == "GET") {
@@ -541,6 +546,8 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         {
                             std::lock_guard<std::mutex> lock(chatMutex);
                             messageList.push_back(msg);
+                            // 记录消息日志
+                            cout << "Message sent: " << from << " -> " << to << ": " << content << endl;
                         }
                         
                         // 对用户名进行URL编码
@@ -572,12 +579,17 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
 
     int bytesSent = send(clientSocket, response.c_str(), response.length(), 0);
     if (bytesSent < 0) {
-        cerr << "send failed: " << WSAGetLastError() << endl;
+        // cerr << "send failed: " << WSAGetLastError() << endl;
     }
     closesocket(clientSocket);
 }
 
 int main() {
+    // 设置Windows控制台输出编码为UTF-8
+    #ifdef _WIN32
+    SetConsoleOutputCP(65001);
+    #endif
+    
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         cerr << "WSAStartup failed" << endl;
@@ -618,12 +630,12 @@ int main() {
         int clientAddrSize = sizeof(clientAddr);
         SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
         if (clientSocket == INVALID_SOCKET) {
-            cerr << "Accept failed" << endl;
+            // cerr << "Accept failed" << endl;
             continue;
         }
 
         string clientIP = inet_ntoa(clientAddr.sin_addr);
-        cout << "Client connected: " << clientIP << endl;
+        // cout << "Client connected: " << clientIP << endl; // 注释掉连接日志，只保留关键请求日志
 
         // 创建线程处理客户端请求
         std::thread([clientSocket, clientIP]() {
