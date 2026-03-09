@@ -51,6 +51,7 @@ string htmlLogin = R"(
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Chat Room Login</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
@@ -77,6 +78,7 @@ string htmlChat = R"(
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Chat Room</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
@@ -143,6 +145,140 @@ string htmlEscape(const string& str) {
     return escaped;
 }
 
+// 验证用户名是否合法（允许：字母、数字、下划线、UTF-8中文）
+bool isValidUsername(const string& username) {
+    if (username.empty()) {
+        return false;
+    }
+
+    size_t charCount = 0; // 字符数（不是字节数）
+    size_t i = 0;
+    while (i < username.length()) {
+        unsigned char c = static_cast<unsigned char>(username[i]);
+
+        if (c <= 0x7F) {
+            // 1. 单字节：ASCII 字符
+            if (!isalnum(c) && c != '_') {
+                return false; // 只允许字母、数字、下划线
+            }
+            i++;
+            charCount++;
+        } else if ((c & 0xE0) == 0xE0) {
+            // 2. 三字节：UTF-8 中文 (基本覆盖中日韩统一表意文字)
+            if (i + 2 >= username.length()) return false; // 不完整的UTF-8序列
+            
+            unsigned char c2 = static_cast<unsigned char>(username[i+1]);
+            unsigned char c3 = static_cast<unsigned char>(username[i+2]);
+            
+            // 检查后续字节是否符合 UTF-8 规范 (10xxxxxx)
+            if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) {
+                return false;
+            }
+            
+            // (可选) 严格限制在基本中文区间 U+4E00 到 U+9FFF
+            // unsigned int codepoint = ((c & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+            // if (codepoint < 0x4E00 || codepoint > 0x9FFF) return false;
+            
+            i += 3;
+            charCount++;
+        } else {
+            // 3. 其他字节（双字节、四字节 emoji 等）：不允许
+            return false;
+        }
+
+        // 限制最多 15 个字符（中文或英文都算一个字符）
+        if (charCount > 15) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// 统一的URL解码函数
+string urlDecode(const string& str) {
+    string decoded;
+    for (size_t i = 0; i < str.length(); i++) {
+        if (str[i] == '%' && i + 2 < str.length()) {
+            char hex[3] = {str[i+1], str[i+2], 0};
+            decoded += static_cast<char>(strtol(hex, nullptr, 16));
+            i += 2;
+        } else if (str[i] == '+') {
+            decoded += ' ';
+        } else {
+            decoded += str[i];
+        }
+    }
+    return decoded;
+}
+
+// HTML实体解码函数
+string htmlEntityDecode(const string& str) {
+    string decoded;
+    size_t i = 0;
+    while (i < str.length()) {
+        if (str[i] == '&' && i + 1 < str.length()) {
+            // 检查是否是HTML实体
+            if (str[i+1] == '#') {
+                // 数字实体，如 &#1234;
+                size_t end = str.find(';', i);
+                if (end != string::npos) {
+                    string numStr = str.substr(i + 2, end - i - 2);
+                    try {
+                        int code = stoi(numStr);
+                        if (code >= 0 && code <= 0xFFFF) {
+                            // 处理UTF-8编码
+                            if (code <= 0x7F) {
+                                // ASCII
+                                decoded += static_cast<char>(code);
+                            } else if (code <= 0x7FF) {
+                                // 双字节UTF-8
+                                decoded += static_cast<char>(0xC0 | (code >> 6));
+                                decoded += static_cast<char>(0x80 | (code & 0x3F));
+                            } else {
+                                // 三字节UTF-8
+                                decoded += static_cast<char>(0xE0 | (code >> 12));
+                                decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+                                decoded += static_cast<char>(0x80 | (code & 0x3F));
+                            }
+                            i = end + 1;
+                            continue;
+                        }
+                    } catch (...) {
+                        // 解析失败，按普通字符串处理
+                    }
+                }
+            } else {
+                // 命名实体，如 &lt;，这里简单处理，只支持常见的几个
+                if (str.substr(i, 4) == "&lt;") {
+                    decoded += '<';
+                    i += 4;
+                    continue;
+                } else if (str.substr(i, 4) == "&gt;") {
+                    decoded += '>';
+                    i += 4;
+                    continue;
+                } else if (str.substr(i, 5) == "&amp;") {
+                    decoded += '&';
+                    i += 5;
+                    continue;
+                } else if (str.substr(i, 6) == "&quot;") {
+                    decoded += '"';
+                    i += 6;
+                    continue;
+                } else if (str.substr(i, 5) == "&#39;") {
+                    decoded += '\'';
+                    i += 5;
+                    continue;
+                }
+            }
+        }
+        // 不是HTML实体，直接添加
+        decoded += str[i];
+        i++;
+    }
+    return decoded;
+}
+
 string parseFormData(const string& data, const string& key) {
     size_t pos = data.find(key + "=");
     if (pos == string::npos) return "";
@@ -150,26 +286,17 @@ string parseFormData(const string& data, const string& key) {
     size_t end = data.find("&", pos);
     if (end == string::npos) end = data.length();
     string value = data.substr(pos, end - pos);
-    // 简单的URL解码
-    string decoded;
-    for (size_t i = 0; i < value.length(); i++) {
-        if (value[i] == '%' && i + 2 < value.length()) {
-            char hex[3] = {value[i+1], value[i+2], 0};
-            decoded += static_cast<char>(strtol(hex, nullptr, 16));
-            i += 2;
-        } else if (value[i] == '+') {
-            decoded += ' ';
-        } else {
-            decoded += value[i];
-        }
-    }
-    return decoded;
+    // 使用统一的URL解码函数
+    return urlDecode(value);
 }
 
 void handleRequest(SOCKET clientSocket, const string& clientIP) {
     char buffer[4096];
     int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
     if (bytesRead <= 0) {
+        if (bytesRead < 0) {
+            cerr << "recv failed: " << WSAGetLastError() << endl;
+        }
         closesocket(clientSocket);
         return;
     }
@@ -196,27 +323,27 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
             if (usernamePos != string::npos) {
                 username = path.substr(usernamePos + 10);
                 // 对用户名进行URL解码
-                string decoded;
-                for (size_t i = 0; i < username.length(); i++) {
-                    if (username[i] == '%' && i + 2 < username.length()) {
-                        char hex[3] = {username[i+1], username[i+2], 0};
-                        decoded += static_cast<char>(strtol(hex, nullptr, 16));
-                        i += 2;
-                    } else if (username[i] == '+') {
-                        decoded += ' ';
-                    } else {
-                        decoded += username[i];
-                    }
-                }
-                username = decoded;
+                username = urlDecode(username);
             }
             
             string messagesHtml = "";
             {
                 std::lock_guard<std::mutex> lock(chatMutex);
+                // 清理过期消息（超过24小时）
+                time_t now = time(nullptr);
+                auto it = messageList.begin();
+                while (it != messageList.end()) {
+                    if (now - it->timestamp > 24 * 3600) {
+                        it = messageList.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+                
+                // 显示用户的消息
                 for (const auto& msg : messageList) {
                     if (msg.to == username) {
-                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                        messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
                     }
                 }
             }
@@ -250,8 +377,10 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
             if (bodyPos != string::npos) {
                 string body = request.substr(bodyPos + 4);
                 string username = parseFormData(body, "username");
+                // 解码HTML实体，确保处理的是原始中文字符
+                username = htmlEntityDecode(username);
                 
-                if (!username.empty()) {
+                if (!username.empty() && isValidUsername(username)) {
                     bool allowLogin = false;
                     {
                         std::lock_guard<std::mutex> lock(chatMutex);
@@ -295,7 +424,7 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: 30\r\n\r\nUsername is already used by another device";
                     }
                 } else {
-                    response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
+                    response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 26\r\n\r\nInvalid username format";
                 }
             } else {
                 response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
@@ -325,11 +454,11 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         // 不能给自己发消息，返回错误页面
                         string chatPage = htmlChat;
                         // 替换用户名
-                        size_t userPos = chatPage.find("%USERNAME%");
-                        while (userPos != string::npos) {
-                            chatPage.replace(userPos, 10, from);
-                            userPos = chatPage.find("%USERNAME%", userPos + from.length());
-                        }
+                size_t userPos = chatPage.find("%USERNAME%");
+                while (userPos != string::npos) {
+                    chatPage.replace(userPos, 10, from);
+                    userPos = chatPage.find("%USERNAME%", userPos + 10);
+                }
                         // 替换错误信息
                         size_t errorPos = chatPage.find("%ERROR%");
                         if (errorPos != string::npos) {
@@ -341,9 +470,21 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                             string messagesHtml = "";
                             {
                                 std::lock_guard<std::mutex> lock(chatMutex);
+                                // 清理过期消息（超过24小时）
+                                time_t now = time(nullptr);
+                                auto it = messageList.begin();
+                                while (it != messageList.end()) {
+                                    if (now - it->timestamp > 24 * 3600) {
+                                        it = messageList.erase(it);
+                                    } else {
+                                        ++it;
+                                    }
+                                }
+                                
+                                // 显示用户的消息
                                 for (const auto& msg : messageList) {
                                     if (msg.to == from) {
-                                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                                        messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
                                     }
                                 }
                             }
@@ -354,11 +495,11 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         // 目标用户不存在，返回错误页面
                         string chatPage = htmlChat;
                         // 替换用户名
-                        size_t userPos = chatPage.find("%USERNAME%");
-                        while (userPos != string::npos) {
-                            chatPage.replace(userPos, 10, from);
-                            userPos = chatPage.find("%USERNAME%", userPos + from.length());
-                        }
+                size_t userPos = chatPage.find("%USERNAME%");
+                while (userPos != string::npos) {
+                    chatPage.replace(userPos, 10, from);
+                    userPos = chatPage.find("%USERNAME%", userPos + 10);
+                }
                         // 替换错误信息
                         size_t errorPos = chatPage.find("%ERROR%");
                         if (errorPos != string::npos) {
@@ -370,9 +511,21 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                             string messagesHtml = "";
                             {
                                 std::lock_guard<std::mutex> lock(chatMutex);
+                                // 清理过期消息（超过24小时）
+                                time_t now = time(nullptr);
+                                auto it = messageList.begin();
+                                while (it != messageList.end()) {
+                                    if (now - it->timestamp > 24 * 3600) {
+                                        it = messageList.erase(it);
+                                    } else {
+                                        ++it;
+                                    }
+                                }
+                                
+                                // 显示用户的消息
                                 for (const auto& msg : messageList) {
                                     if (msg.to == from) {
-                                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                                        messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
                                     }
                                 }
                             }
@@ -417,7 +570,10 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
         response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/plain\r\nContent-Length: 17\r\n\r\nMethod Not Allowed";
     }
 
-    send(clientSocket, response.c_str(), response.length(), 0);
+    int bytesSent = send(clientSocket, response.c_str(), response.length(), 0);
+    if (bytesSent < 0) {
+        cerr << "send failed: " << WSAGetLastError() << endl;
+    }
     closesocket(clientSocket);
 }
 
