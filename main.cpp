@@ -3,12 +3,32 @@
 #include <vector>
 #include <map>
 #include <sstream>
+#include <mutex>
+#include <thread>
+
+// 跨平台Socket支持
+#ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
-
 #pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#define SOCKET int
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#define closesocket close
+#define WSADATA int
+#define WSAStartup(a, b) 0
+#define WSACleanup() 0
+#endif
 
 using namespace std;
+
+// 全局互斥锁（保护userMap和messageList）
+std::mutex chatMutex;
 
 struct User {
     string username;
@@ -19,6 +39,9 @@ struct Message {
     string from;
     string to;
     string content;
+    time_t timestamp; // 添加时间戳，用于清理过期消息
+
+    Message() : timestamp(time(nullptr)) {}
 };
 
 map<string, User> userMap; // 用户名到用户信息的映射
@@ -103,6 +126,22 @@ string getContentType(const string& path) {
     return "text/plain";
 }
 
+// HTML转义函数，防止XSS攻击
+string htmlEscape(const string& str) {
+    string escaped;
+    for (char c : str) {
+        switch (c) {
+            case '<': escaped += "&lt;"; break;
+            case '>': escaped += "&gt;"; break;
+            case '&': escaped += "&amp;"; break;
+            case '"': escaped += "&quot;"; break;
+            case '\'': escaped += "&#39;"; break;
+            default: escaped += c;
+        }
+    }
+    return escaped;
+}
+
 string parseFormData(const string& data, const string& key) {
     size_t pos = data.find(key + "=");
     if (pos == string::npos) return "";
@@ -172,9 +211,12 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
             }
             
             string messagesHtml = "";
-            for (const auto& msg : messageList) {
-                if (msg.to == username) {
-                    messagesHtml += msg.from + ": " + msg.content + "<br>";
+            {
+                std::lock_guard<std::mutex> lock(chatMutex);
+                for (const auto& msg : messageList) {
+                    if (msg.to == username) {
+                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                    }
                 }
             }
             
@@ -213,7 +255,10 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                     User user;
                     user.username = username;
                     user.ip = clientIP;
-                    userMap[username] = user;
+                    {
+                        std::lock_guard<std::mutex> lock(chatMutex);
+                        userMap[username] = user;
+                    }
                     
                     // 对用户名进行URL编码
                     string encodedUsername;
@@ -247,10 +292,13 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                 
                 // 从请求中获取发送者用户名（这里简化处理，实际应该从会话中获取）
                 string from = "";
-                for (const auto& pair : userMap) {
-                    if (pair.second.ip == clientIP) {
-                        from = pair.first;
-                        break;
+                {
+                    std::lock_guard<std::mutex> lock(chatMutex);
+                    for (const auto& pair : userMap) {
+                        if (pair.second.ip == clientIP) {
+                            from = pair.first;
+                            break;
+                        }
                     }
                 }
                 
@@ -274,9 +322,12 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         size_t msgPos = chatPage.find("%MESSAGES%");
                         if (msgPos != string::npos) {
                             string messagesHtml = "";
-                            for (const auto& msg : messageList) {
-                                if (msg.to == from) {
-                                    messagesHtml += msg.from + ": " + msg.content + "<br>";
+                            {
+                                std::lock_guard<std::mutex> lock(chatMutex);
+                                for (const auto& msg : messageList) {
+                                    if (msg.to == from) {
+                                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                                    }
                                 }
                             }
                             chatPage.replace(msgPos, 10, messagesHtml);
@@ -300,9 +351,12 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         size_t msgPos = chatPage.find("%MESSAGES%");
                         if (msgPos != string::npos) {
                             string messagesHtml = "";
-                            for (const auto& msg : messageList) {
-                                if (msg.to == from) {
-                                    messagesHtml += msg.from + ": " + msg.content + "<br>";
+                            {
+                                std::lock_guard<std::mutex> lock(chatMutex);
+                                for (const auto& msg : messageList) {
+                                    if (msg.to == from) {
+                                        messagesHtml += msg.from + ": " + msg.content + "<br>";
+                                    }
                                 }
                             }
                             chatPage.replace(msgPos, 10, messagesHtml);
@@ -313,8 +367,11 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                         Message msg;
                         msg.from = from;
                         msg.to = to;
-                        msg.content = content;
-                        messageList.push_back(msg);
+                        msg.content = content; // 存储原始内容，不进行转义
+                        {
+                            std::lock_guard<std::mutex> lock(chatMutex);
+                            messageList.push_back(msg);
+                        }
                         
                         // 对用户名进行URL编码
                         string encodedFrom;
@@ -396,15 +453,9 @@ int main() {
         cout << "Client connected: " << clientIP << endl;
 
         // 创建线程处理客户端请求
-        CreateThread(nullptr, 0, [](LPVOID param) -> DWORD {
-            SOCKET clientSocket = reinterpret_cast<SOCKET>(param);
-            sockaddr_in clientAddr;
-            int clientAddrSize = sizeof(clientAddr);
-            getpeername(clientSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-            string clientIP = inet_ntoa(clientAddr.sin_addr);
+        std::thread([clientSocket, clientIP]() {
             handleRequest(clientSocket, clientIP);
-            return 0;
-        }, reinterpret_cast<LPVOID>(clientSocket), 0, nullptr);
+        }).detach();
     }
 
     closesocket(serverSocket);
