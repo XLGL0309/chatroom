@@ -99,6 +99,7 @@ string htmlChat = R"(
         <div class="send-section">
             <h2>Send Message</h2>
             <form action="/send" method="post">
+                <input type="hidden" name="from" value="%USERNAME%">
                 <input type="text" name="to" placeholder="Recipient username" required>
                 <textarea name="content" placeholder="Message content" rows="3" required></textarea>
                 <button type="submit">Send Message</button>
@@ -251,28 +252,48 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
                 string username = parseFormData(body, "username");
                 
                 if (!username.empty()) {
-                    // 保存用户信息
-                    User user;
-                    user.username = username;
-                    user.ip = clientIP;
+                    bool allowLogin = false;
                     {
                         std::lock_guard<std::mutex> lock(chatMutex);
-                        userMap[username] = user;
-                    }
-                    
-                    // 对用户名进行URL编码
-                    string encodedUsername;
-                    for (char c : username) {
-                        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-                            encodedUsername += c;
+                        // 检查用户名是否已存在
+                        auto it = userMap.find(username);
+                        if (it == userMap.end()) {
+                            // 用户名不存在，允许登录
+                            User user;
+                            user.username = username;
+                            user.ip = clientIP;
+                            userMap[username] = user;
+                            allowLogin = true;
                         } else {
-                            char hex[3];
-                            sprintf(hex, "%02X", (unsigned char)c);
-                            encodedUsername += "%" + string(hex);
+                            // 用户名已存在，检查IP是否匹配
+                            if (it->second.ip == clientIP) {
+                                // IP匹配，允许登录
+                                allowLogin = true;
+                            } else {
+                                // IP不匹配，拒绝登录
+                                allowLogin = false;
+                            }
                         }
                     }
-                    // 跳转到聊天页面
-                    response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedUsername + "\r\n\r\n";
+                    
+                    if (allowLogin) {
+                        // 对用户名进行URL编码
+                        string encodedUsername;
+                        for (char c : username) {
+                            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+                                encodedUsername += c;
+                            } else {
+                                char hex[3];
+                                sprintf(hex, "%02X", (unsigned char)c);
+                                encodedUsername += "%" + string(hex);
+                            }
+                        }
+                        // 跳转到聊天页面
+                        response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedUsername + "\r\n\r\n";
+                    } else {
+                        // 用户名已被其他IP使用，返回错误
+                        response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: 30\r\n\r\nUsername is already used by another device";
+                    }
                 } else {
                     response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
                 }
@@ -284,21 +305,17 @@ void handleRequest(SOCKET clientSocket, const string& clientIP) {
             size_t bodyPos = request.find("\r\n\r\n");
             if (bodyPos != string::npos) {
                 string body = request.substr(bodyPos + 4);
+                string from = parseFormData(body, "from");
                 string to = parseFormData(body, "to");
                 string content = parseFormData(body, "content");
                 
-                // 不需要解码HTML实体，因为parseFormData已经处理了URL编码
-                // 直接使用解码后的值即可
-                
-                // 从请求中获取发送者用户名（这里简化处理，实际应该从会话中获取）
-                string from = "";
+                // 验证发送者用户名是否有效且与IP匹配
+                bool validUser = false;
                 {
                     std::lock_guard<std::mutex> lock(chatMutex);
-                    for (const auto& pair : userMap) {
-                        if (pair.second.ip == clientIP) {
-                            from = pair.first;
-                            break;
-                        }
+                    auto it = userMap.find(from);
+                    if (it != userMap.end() && it->second.ip == clientIP) {
+                        validUser = true;
                     }
                 }
                 
