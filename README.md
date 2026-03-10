@@ -1,0 +1,103 @@
+# Chat Room Server
+
+一个基于C++和Socket编程实现的简单聊天室服务器，支持多用户实时消息收发，具备用户认证、消息管理和Web界面交互功能。
+
+## 项目特点
+
+- **跨平台支持**：兼容Windows和类Unix系统
+- **多线程并发**：每个客户端请求由独立线程处理
+- **用户认证**：支持用户名注册和登录，IP绑定防止账户冒用
+- **消息管理**：支持消息存储、查询和24小时自动过期清理
+- **Web界面**：提供友好的登录和聊天界面
+- **安全防护**：HTML转义防止XSS攻击，输入验证确保数据合法性
+
+## 目录结构
+
+```
+ChatRoom/
+├── CMakeLists.txt        # 构建文件
+├── main.cpp              # 主文件
+├── include/              # 头文件目录
+│   ├── network.h         # 网络相关功能
+│   ├── message.h         # 消息管理功能
+│   ├── user.h            # 用户管理功能
+│   ├── web.h             # Web页面和HTTP处理
+│   └── utils.h           # 工具函数
+└── src/                  # 源文件目录
+    ├── network.cpp       # 网络相关实现
+    ├── message.cpp       # 消息管理实现
+    ├── user.cpp          # 用户管理实现
+    ├── web.cpp           # Web页面和HTTP处理实现
+    └── utils.cpp         # 工具函数实现
+```
+
+## 编译步骤
+
+### 方法一：使用CMake（推荐）
+
+1. 确保已安装CMake和C++编译器
+2. 在项目根目录创建build目录：
+   ```bash
+   mkdir build && cd build
+   ```
+3. 运行CMake生成构建文件：
+   ```bash
+   cmake ..
+   ```
+4. 编译项目：
+   ```bash
+   cmake --build .
+   ```
+
+### 方法二：直接使用g++
+
+在项目根目录执行以下命令：
+
+```bash
+g++ -o ChatRoomServer main.cpp src/network.cpp src/message.cpp src/user.cpp src/web.cpp src/utils.cpp -lws2_32
+```
+
+**注意**：`-lws2_32` 选项仅在Windows平台需要，Linux/Unix平台请移除该选项。
+
+## 运行服务器
+
+1. 编译完成后，在项目根目录或build目录找到生成的可执行文件
+2. 运行服务器：
+   ```bash
+   # Windows
+   .\ChatRoomServer.exe
+   
+   # Linux/Unix
+   ./ChatRoomServer
+   ```
+3. 服务器将在8888端口启动
+4. 在浏览器中访问 `http://localhost:8888` 即可进入聊天室
+
+## 使用说明
+
+1. **登录**：输入用户名，点击登录按钮
+2. **发送消息**：在消息发送区域填写接收者用户名和消息内容，点击发送
+3. **查看消息**：点击"View My Messages"按钮查看收到的消息
+
+## 技术栈
+
+- **语言**：C++11
+- **网络**：Socket API（跨平台兼容）
+- **Web**：HTTP协议、HTML5
+- **并发**：C++11线程库、互斥锁
+- **构建工具**：CMake
+
+## 注意事项
+
+- 服务器默认监听8888端口，请确保该端口未被占用
+- 消息会在24小时后自动过期清理
+- 用户名支持字母、数字、下划线和UTF-8中文
+- 每个用户名只能在一个IP地址上登录
+
+## 扩展建议
+
+- 添加群聊功能
+- 实现文件传输功能
+- 添加用户在线状态显示
+- 实现消息加密传输
+- 添加数据库持久化存储
