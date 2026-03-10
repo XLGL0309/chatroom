@@ -15,8 +15,8 @@ const std::string htmlLogin = R"(
         body { font-family: Arial, sans-serif; margin: 20px; }
         .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
         h1 { text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; }
-        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;}
+        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;box-sizing: border-box;  }
         button:hover { background: #45a049; }
     </style>
 </head>
@@ -39,15 +39,16 @@ const std::string htmlChat = R"(
     <meta charset="UTF-8">
     <title>Chat Room</title>
     <style>
+        * {box-sizing: border-box;}
         body { font-family: Arial, sans-serif; margin: 20px; }
         .container { max-width: 600px; margin: 0 auto; }
         h1 { text-align: center; }
         .user-info { text-align: right; margin-bottom: 20px; font-weight: bold; }
         .message-section, .send-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; }
+        input, textarea { width: 100%; padding: 10px; margin: 10px 0; resize: vertical}
         button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
         button:hover { background: #45a049; }
-        #messages { margin-top: 10px; padding: 10px; border: 1px solid #eee; min-height: 200px; }
+        #messages { margin-top: 10px; padding: 10px; border: 1px solid #eee; min-height: 200px;box-sizing: border-box;}
         .error { color: red; margin: 10px 0; }
     </style>
 </head>
