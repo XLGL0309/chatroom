@@ -79,6 +79,22 @@ std::string urlDecode(const std::string& str) {
     return decoded;
 }
 
+// URL编码函数
+std::string urlEncode(const std::string& str) {
+    std::string encoded;
+    encoded.reserve(str.length() * 3); // 预分配空间，最坏情况下每个字符需要3个字符空间
+    for (char c : str) {
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded += c;
+        } else {
+            char hex[3];
+            sprintf(hex, "%02X", (unsigned char)c);
+            encoded += "%" + std::string(hex);
+        }
+    }
+    return encoded;
+}
+
 // HTML实体解码函数
 // 辅助函数：将Unicode码点转换为UTF-8编码并添加到字符串
 void appendUtf8(std::string& str, int code) {

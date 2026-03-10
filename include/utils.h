@@ -12,6 +12,9 @@ bool isValidUsername(const std::string& username);
 // URL解码函数
 std::string urlDecode(const std::string& str);
 
+// URL编码函数
+std::string urlEncode(const std::string& str);
+
 // HTML实体解码函数
 std::string htmlEntityDecode(const std::string& str);
 

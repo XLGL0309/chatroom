@@ -156,16 +156,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     
                     if (allowLogin) {
                         // 对用户名进行URL编码
-                        std::string encodedUsername;
-                        for (char c : username) {
-                            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-                                encodedUsername += c;
-                            } else {
-                                char hex[3];
-                                sprintf(hex, "%02X", (unsigned char)c);
-                                encodedUsername += "%" + std::string(hex);
-                            }
-                        }
+                        std::string encodedUsername = urlEncode(username);
                         // 跳转到聊天页面
                         response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedUsername + "\r\n\r\n";
                     } else {
