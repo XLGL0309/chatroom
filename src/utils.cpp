@@ -1,6 +1,6 @@
 #include "../include/utils.h"
 #include <cctype>
-
+#include <unordered_map>
 // HTML转义函数，防止XSS攻击
 std::string htmlEscape(const std::string& str) {
     std::string escaped;
@@ -80,8 +80,51 @@ std::string urlDecode(const std::string& str) {
 }
 
 // HTML实体解码函数
+// 辅助函数：将Unicode码点转换为UTF-8编码并添加到字符串
+void appendUtf8(std::string& str, int code) {
+    if (code <= 0x7F) {
+        // 1字节：ASCII
+        str += static_cast<char>(code);
+    } else if (code <= 0x7FF) {
+        // 2字节UTF-8
+        str += static_cast<char>(0xC0 | (code >> 6));
+        str += static_cast<char>(0x80 | (code & 0x3F));
+    } else if (code <= 0xFFFF) {
+        // 3字节UTF-8
+        str += static_cast<char>(0xE0 | (code >> 12));
+        str += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+        str += static_cast<char>(0x80 | (code & 0x3F));
+    } else if (code <= 0x10FFFF) {
+        // 4字节UTF-8 (支持emoji等)
+        str += static_cast<char>(0xF0 | (code >> 18));
+        str += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
+        str += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+        str += static_cast<char>(0x80 | (code & 0x3F));
+    }
+}
+
 std::string htmlEntityDecode(const std::string& str) {
+    // 预分配空间，减少内存重新分配
     std::string decoded;
+    decoded.reserve(str.length());
+    
+    // 命名实体映射表，提高查找效率
+    static const std::unordered_map<std::string, std::string> entityMap = {
+        {"lt", "<"},
+        {"gt", ">"},
+        {"amp", "&"},
+        {"quot", "\""},
+        {"#39", "'"},
+        {"nbsp", " "},
+        {"copy", "©"},
+        {"reg", "®"},
+        {"trade", "™"},
+        {"cent", "¢"},
+        {"pound", "£"},
+        {"yen", "¥"},
+        {"euro", "€"}
+    };
+    
     size_t i = 0;
     while (i < str.length()) {
         if (str[i] == '&' && i + 1 < str.length()) {
@@ -93,21 +136,9 @@ std::string htmlEntityDecode(const std::string& str) {
                     std::string numStr = str.substr(i + 2, end - i - 2);
                     try {
                         int code = std::stoi(numStr);
-                        if (code >= 0 && code <= 0xFFFF) {
+                        if (code >= 0 && code <= 0x10FFFF) {
                             // 处理UTF-8编码
-                            if (code <= 0x7F) {
-                                // ASCII
-                                decoded += static_cast<char>(code);
-                            } else if (code <= 0x7FF) {
-                                // 双字节UTF-8
-                                decoded += static_cast<char>(0xC0 | (code >> 6));
-                                decoded += static_cast<char>(0x80 | (code & 0x3F));
-                            } else {
-                                // 三字节UTF-8
-                                decoded += static_cast<char>(0xE0 | (code >> 12));
-                                decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
-                                decoded += static_cast<char>(0x80 | (code & 0x3F));
-                            }
+                            appendUtf8(decoded, code);
                             i = end + 1;
                             continue;
                         }
@@ -116,27 +147,17 @@ std::string htmlEntityDecode(const std::string& str) {
                     }
                 }
             } else {
-                // 命名实体，如 &lt;，这里简单处理，只支持常见的几个
-                if (str.substr(i, 4) == "&lt;") {
-                    decoded += '<';
-                    i += 4;
-                    continue;
-                } else if (str.substr(i, 4) == "&gt;") {
-                    decoded += '>';
-                    i += 4;
-                    continue;
-                } else if (str.substr(i, 5) == "&amp;") {
-                    decoded += '&';
-                    i += 5;
-                    continue;
-                } else if (str.substr(i, 6) == "&quot;") {
-                    decoded += '"';
-                    i += 6;
-                    continue;
-                } else if (str.substr(i, 5) == "&#39;") {
-                    decoded += '\'';
-                    i += 5;
-                    continue;
+                // 命名实体，如 &lt;
+                size_t end = str.find(';', i);
+                if (end != std::string::npos) {
+                    std::string entityName = str.substr(i + 1, end - i - 1);
+                    auto it = entityMap.find(entityName);
+                    if (it != entityMap.end()) {
+                        // 找到匹配的实体
+                        decoded += it->second;
+                        i = end + 1;
+                        continue;
+                    }
                 }
             }
         }
