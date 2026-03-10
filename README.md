@@ -71,7 +71,10 @@ g++ -o ChatRoomServer main.cpp src/network.cpp src/message.cpp src/user.cpp src/
    ./ChatRoomServer
    ```
 3. 服务器将在8888端口启动
-4. 在浏览器中访问 `http://localhost:8888` 即可进入聊天室
+4. **本地访问**：在服务器所在设备的浏览器中访问 `http://localhost:8888`
+5. **内网访问**：在同一局域网内的其他设备浏览器中访问 `http://[服务器IP地址]:8888`
+   - 服务器IP地址可以在服务器启动时的日志中看到（Local IP address）
+   - 例如：`http://192.168.1.100:8888`
 
 ## 使用说明
 
