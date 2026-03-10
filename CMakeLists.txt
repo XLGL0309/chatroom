@@ -4,7 +4,16 @@ project(ChatRoom)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(ChatRoomServer main.cpp)
+include_directories(include)
+
+add_executable(ChatRoomServer
+    main.cpp
+    src/network.cpp
+    src/message.cpp
+    src/user.cpp
+    src/web.cpp
+    src/utils.cpp
+)
 
 # 跨平台链接socket/线程库
 if(WIN32)
