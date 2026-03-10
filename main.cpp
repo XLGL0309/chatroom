@@ -26,9 +26,7 @@ int main() {
         std::string clientIP = inet_ntoa(clientAddr.sin_addr);
 
         // 创建线程处理客户端请求
-        std::thread([clientSocket, clientIP]() {
-            handleClientConnection(clientSocket, clientIP);
-        }).detach();
+        std::thread(handleClientConnection, clientSocket, clientIP).detach();
     }
 
     closesocket(serverSocket);
