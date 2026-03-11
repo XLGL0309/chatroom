@@ -11,7 +11,7 @@
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
+        std::cerr << "无法打开文件: " << filename << std::endl;
         return "";
     }
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -128,7 +128,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     std::string json = generateMessagesJson(messages);
                     // 确保返回正确的Content-Type和CORS头
                     std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
-                    responseWithHeaders += "Content-Type: application/json\r\n";
+                    responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
                     responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
                     responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
                     responseWithHeaders += "\r\n";
@@ -146,7 +146,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             if (response.empty()) {
                 std::string json = "{\"messages\": []}";
                 std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
-                responseWithHeaders += "Content-Type: application/json\r\n";
+                responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
                 responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
                 responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
                 responseWithHeaders += "\r\n";
@@ -183,7 +183,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     response = createHttpResponse(400, "Bad Request", "text/plain", "输入无效：用户名必须有效且密码至少6个字符");
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
+                response = createHttpResponse(400, "Bad Request", "text/plain", "请求参数错误");
             }
         } else if (path == "/register") {
             // 处理注册
@@ -207,10 +207,10 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         response = createHttpResponse(409, "Conflict", "text/plain", "用户名已存在");
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "输入无效：用户名必须有效且密码至少6个字符");
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "请求参数错误");
             }
         } else if (path == "/send") {
             // 处理发送消息
@@ -232,7 +232,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         response = createHttpResponse(200, "OK", "text/html", errorPage);
                     } else if (!g_userManager.userExists(to)) {
                         // 目标用户不存在，返回错误页面
-                        std::string errorPage = generatePage(from, "", "User '" + to + "' does not exist");
+                        std::string errorPage = generatePage(from, "", "用户 '" + to + "' 不存在");
                         response = createHttpResponse(200, "OK", "text/html", errorPage);
                     } else {
                         // 保存消息
@@ -244,10 +244,10 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedFrom + "&status=success");
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "请求参数错误");
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
+                response = createHttpResponse(400, "Bad Request", "text/plain", "请求参数错误");
             }
         } else {
             response = createHttpResponse(404, "Not Found", "text/plain", "页面不存在");

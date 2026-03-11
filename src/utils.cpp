@@ -27,7 +27,7 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
         response += "Location: " + location + "\r\n";
     } else {
         // 非重定向响应需要添加Content-Type和Content-Length头
-        response += "Content-Type: " + contentType + "\r\n";
+            response += "Content-Type: " + contentType + "; charset=utf-8\r\n";
         response += "Content-Length: " + std::to_string(content.length()) + "\r\n";
     }
     //添加空行

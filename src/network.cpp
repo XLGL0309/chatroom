@@ -7,7 +7,7 @@ void initializeNetwork() {
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        std::cerr << "WSAStartup failed" << std::endl;
+        std::cerr << "WSAStartup初始化失败" << std::endl;
         exit(1);
     }
 #endif
@@ -16,7 +16,7 @@ void initializeNetwork() {
 SOCKET createServerSocket(int port) {
     SOCKET serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == INVALID_SOCKET) {
-        std::cerr << "Socket creation failed" << std::endl;
+        std::cerr << "Socket创建失败" << std::endl;
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -29,7 +29,7 @@ SOCKET createServerSocket(int port) {
     serverAddr.sin_port = htons(port);
 
     if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "Bind failed" << std::endl;
+        std::cerr << "端口绑定失败" << std::endl;
         closesocket(serverSocket);
 #ifdef _WIN32
         WSACleanup();
@@ -38,7 +38,7 @@ SOCKET createServerSocket(int port) {
     }
 
     if (listen(serverSocket, 5) == SOCKET_ERROR) {
-        std::cerr << "Listen failed" << std::endl;
+        std::cerr << "监听失败" << std::endl;
         closesocket(serverSocket);
 #ifdef _WIN32
         WSACleanup();
