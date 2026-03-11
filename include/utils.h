@@ -27,4 +27,7 @@ std::string getContentType(const std::string& path);
 // 解析URL参数
 std::string parseUrlParam(const std::string& url, const std::string& key);
 
+// 生成HTTP响应
+std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location = "");
+
 #endif // UTILS_H

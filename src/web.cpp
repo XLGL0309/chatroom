@@ -45,7 +45,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             std::string filePath = "html/login.html";
             std::string content = readFile(filePath);
             std::string contentType = getContentType(filePath);
-            response = "HTTP/1.1 200 OK\r\nContent-Type: " + contentType + "\r\nContent-Length: " + std::to_string(content.length()) + "\r\n\r\n" + content;
+            response = createHttpResponse(200, "OK", contentType, content);
         } else if (path.find("/view") == 0) {
             // 查看消息
             // 使用parseUrlParam函数解析URL参数
@@ -80,9 +80,9 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                 }
             }
             
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + std::to_string(chatPage.length()) + "\r\n\r\n" + chatPage;
+            response = createHttpResponse(200, "OK", "text/html", chatPage);
         } else {
-            response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nNot Found";
+            response = createHttpResponse(404, "Not Found", "text/plain", "Not Found");
         }
     } else if (method == "POST") {
         if (path == "/login") {
@@ -101,16 +101,16 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         // 对用户名进行URL编码
                         std::string encodedUsername = urlEncode(username);
                         // 跳转到聊天页面
-                        response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedUsername + "\r\n\r\n";
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername);
                     } else {
                         // 用户名已被其他IP使用，返回错误
-                        response = "HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\nContent-Length: 30\r\n\r\nUsername is already used by another device";
+                        response = createHttpResponse(403, "Forbidden", "text/plain", "Username is already used by another device");
                     }
                 } else {
-                    response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 26\r\n\r\nInvalid username format";
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid username format");
                 }
             } else {
-                response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
             }
         } else if (path == "/send") {
             // 处理发送消息
@@ -150,7 +150,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                             }
                             chatPage.replace(msgPos, 10, messagesHtml);
                         }
-                        response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + std::to_string(chatPage.length()) + "\r\n\r\n" + chatPage;
+                        response = createHttpResponse(200, "OK", "text/html", chatPage);
                     } else if (!g_userManager.userExists(to)) {
                         // 目标用户不存在，返回错误页面
                         std::string chatPage = htmlChat;
@@ -175,7 +175,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                             }
                             chatPage.replace(msgPos, 10, messagesHtml);
                         }
-                        response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: " + std::to_string(chatPage.length()) + "\r\n\r\n" + chatPage;
+                        response = createHttpResponse(200, "OK", "text/html", chatPage);
                     } else {
                         // 保存消息
                         g_messageManager.addMessage(from, to, content);
@@ -183,19 +183,19 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         // 对用户名进行URL编码
                         std::string encodedFrom = urlEncode(from);
                         // 跳回查看消息页面并添加成功提示
-                        response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedFrom + "&status=success\r\n\r\n";
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedFrom + "&status=success");
                     }
                 } else {
-                    response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
                 }
             } else {
-                response = "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\nContent-Length: 11\r\n\r\nBad Request";
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
             }
         } else {
-            response = "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nNot Found";
+            response = createHttpResponse(404, "Not Found", "text/plain", "Not Found");
         }
     } else {
-        response = "HTTP/1.1 405 Method Not Allowed\r\nContent-Type: text/plain\r\nContent-Length: 17\r\n\r\nMethod Not Allowed";
+        response = createHttpResponse(405, "Method Not Allowed", "text/plain", "Method Not Allowed");
     }
 
     return response;

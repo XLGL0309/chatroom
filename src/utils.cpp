@@ -17,6 +17,30 @@ std::string htmlEscape(const std::string& str) {
     return escaped;
 }
 
+// 生成HTTP响应
+std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location) {
+    std::string response;
+    response += "HTTP/1.1 " + std::to_string(statusCode) + " " + statusMessage + "\r\n";
+    
+    // 如果提供了location参数，则添加Location头（用于重定向）
+    if (!location.empty()) {
+        response += "Location: " + location + "\r\n";
+    } else {
+        // 非重定向响应需要添加Content-Type和Content-Length头
+        response += "Content-Type: " + contentType + "\r\n";
+        response += "Content-Length: " + std::to_string(content.length()) + "\r\n";
+    }
+    
+    response += "\r\n";
+    
+    // 非重定向响应需要添加内容
+    if (location.empty()) {
+        response += content;
+    }
+    
+    return response;
+}
+
 // 验证用户名是否合法（允许：字母、数字、下划线、UTF-8中文）
 bool isValidUsername(const std::string& username) {
     if (username.empty()) {
