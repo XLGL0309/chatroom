@@ -2,6 +2,7 @@
 #define NETWORK_H
 
 #include <string>
+#include <atomic>
 
 // 跨平台Socket支持
 #ifdef _WIN32
@@ -21,6 +22,9 @@
 #define WSAStartup(a, b) 0
 #define WSACleanup() 0
 #endif
+
+extern std::atomic<bool> g_running;
+extern SOCKET g_serverSocket;
 
 void initializeNetwork();
 SOCKET createServerSocket(int port);

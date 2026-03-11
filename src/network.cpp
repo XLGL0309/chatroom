@@ -3,6 +3,9 @@
 #include <iostream>
 #include <thread>
 
+std::atomic<bool> g_running(true);
+SOCKET g_serverSocket = INVALID_SOCKET;
+
 void initializeNetwork() {
 #ifdef _WIN32
     WSADATA wsaData;
@@ -46,8 +49,10 @@ SOCKET createServerSocket(int port) {
         exit(1);
     }
 
+    g_serverSocket = serverSocket;
     std::cout << "服务器已启动，端口: " << port << std::endl;
     std::cout << "本地IP地址: " << inet_ntoa(serverAddr.sin_addr) << std::endl;
+    std::cout << "输入 'exit'、'quit' 或 'stop' 停止服务器" << std::endl;
 
     return serverSocket;
 }
