@@ -21,6 +21,43 @@ std::string readFile(const std::string& filename) {
 const std::string htmlLogin = readFile("html/login.html");
 const std::string htmlChat = readFile("html/chat.html");
 
+// 生成聊天页面的辅助函数
+std::string generateChatPage(const std::string& username, const std::string& status = "", const std::string& error = "") {
+    std::string chatPage = htmlChat;
+    
+    // 替换所有的 %USERNAME% 出现
+    size_t userPos = chatPage.find("%USERNAME%");
+    while (userPos != std::string::npos) {
+        chatPage.replace(userPos, 10, username);
+        userPos = chatPage.find("%USERNAME%", userPos + username.length());
+    }
+    
+    // 替换消息
+    std::string messagesHtml = "";
+    auto messages = g_messageManager.getMessagesForUser(username);
+    for (const auto& msg : messages) {
+        messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
+    }
+    size_t msgPos = chatPage.find("%MESSAGES%");
+    if (msgPos != std::string::npos) {
+        chatPage.replace(msgPos, 10, messagesHtml);
+    }
+    
+    // 设置状态信息
+    size_t statusPos = chatPage.find("%STATUS%");
+    if (statusPos != std::string::npos) {
+        if (!error.empty()) {
+            chatPage.replace(statusPos, 8, "<div class='error'>Error: " + error + "</div>");
+        } else if (status == "success") {
+            chatPage.replace(statusPos, 8, "<div style='color: green; margin: 10px 0;'>Message sent successfully!</div>");
+        } else {
+            chatPage.replace(statusPos, 8, "");
+        }
+    } 
+    
+    return chatPage;
+}
+
 std::string handleHttpRequest(const std::string& request, const std::string& clientIP) {
     // 解析HTTP请求
     size_t methodEnd = request.find(" ");
@@ -51,36 +88,26 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             // 使用parseUrlParam函数解析URL参数
             std::string username = parseUrlParam(path, "username");
             std::string status = parseUrlParam(path, "status");
+            std::string error = parseUrlParam(path, "error");
             
-            std::string messagesHtml = "";
-            auto messages = g_messageManager.getMessagesForUser(username);
-            for (const auto& msg : messages) {
-                messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
-            }
-            
-            std::string chatPage = htmlChat;
-            // 替换所有的 %USERNAME% 出现
-            size_t userPos = chatPage.find("%USERNAME%");
-            while (userPos != std::string::npos) {
-                chatPage.replace(userPos, 10, username);
-                userPos = chatPage.find("%USERNAME%", userPos + username.length());
-            }
-            // 替换消息
-            size_t msgPos = chatPage.find("%MESSAGES%");
-            if (msgPos != std::string::npos) {
-                chatPage.replace(msgPos, 10, messagesHtml);
-            }
-            // 设置状态信息
-            size_t statusPos = chatPage.find("%STATUS%");
-            if (statusPos != std::string::npos) {
-                if (status == "success") {
-                    chatPage.replace(statusPos, 8, "<div style='color: green; margin: 10px 0;'>Message sent successfully!</div>");
-                } else {
-                    chatPage.replace(statusPos, 8, "");
-                }
-            }
-            
+            // 生成聊天页面
+            std::string chatPage = generateChatPage(username, status, error);
             response = createHttpResponse(200, "OK", "text/html", chatPage);
+        } else if (path.find("/api/messages") == 0) {
+            // 处理API请求，返回JSON格式的消息
+            std::string username = parseUrlParam(path, "username");
+            auto messages = g_messageManager.getMessagesForUser(username);
+            
+            std::string json = "{\"messages\": [";
+            bool first = true;
+            for (const auto& msg : messages) {
+                if (!first) json += ", ";
+                json += "{\"from\": \"" + htmlEscape(msg.from) + "\", \"content\": \"" + htmlEscape(msg.content) + "\"}";
+                first = false;
+            }
+            json += "]}";
+            
+            response = createHttpResponse(200, "OK", "application/json", json);
         } else {
             response = createHttpResponse(404, "Not Found", "text/plain", "Not Found");
         }
@@ -128,53 +155,11 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     // 检查是否给自己发消息
                     if (from == to) {
                         // 不能给自己发消息，返回错误页面
-                        std::string chatPage = htmlChat;
-                        // 替换用户名
-                        size_t userPos = chatPage.find("%USERNAME%");
-                        while (userPos != std::string::npos) {
-                            chatPage.replace(userPos, 10, from);
-                            userPos = chatPage.find("%USERNAME%", userPos + 10);
-                        }
-                        // 替换状态信息
-                        size_t statusPos = chatPage.find("%STATUS%");
-                        if (statusPos != std::string::npos) {
-                            chatPage.replace(statusPos, 8, "<div class='error'>Error: You cannot send messages to yourself</div>");
-                        }
-                        // 替换消息
-                        size_t msgPos = chatPage.find("%MESSAGES%");
-                        if (msgPos != std::string::npos) {
-                            std::string messagesHtml = "";
-                            auto messages = g_messageManager.getMessagesForUser(from);
-                            for (const auto& msg : messages) {
-                                messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
-                            }
-                            chatPage.replace(msgPos, 10, messagesHtml);
-                        }
+                        std::string chatPage = generateChatPage(from, "", "You cannot send messages to yourself");
                         response = createHttpResponse(200, "OK", "text/html", chatPage);
                     } else if (!g_userManager.userExists(to)) {
                         // 目标用户不存在，返回错误页面
-                        std::string chatPage = htmlChat;
-                        // 替换用户名
-                        size_t userPos = chatPage.find("%USERNAME%");
-                        while (userPos != std::string::npos) {
-                            chatPage.replace(userPos, 10, from);
-                            userPos = chatPage.find("%USERNAME%", userPos + 10);
-                        }
-                        // 替换状态信息
-                        size_t statusPos = chatPage.find("%STATUS%");
-                        if (statusPos != std::string::npos) {
-                            chatPage.replace(statusPos, 8, "<div class='error'>Error: User '" + to + "' does not exist</div>");
-                        }
-                        // 替换消息
-                        size_t msgPos = chatPage.find("%MESSAGES%");
-                        if (msgPos != std::string::npos) {
-                            std::string messagesHtml = "";
-                            auto messages = g_messageManager.getMessagesForUser(from);
-                            for (const auto& msg : messages) {
-                                messagesHtml += htmlEscape(msg.from) + ": " + htmlEscape(msg.content) + "<br>";
-                            }
-                            chatPage.replace(msgPos, 10, messagesHtml);
-                        }
+                        std::string chatPage = generateChatPage(from, "", "User '" + to + "' does not exist");
                         response = createHttpResponse(200, "OK", "text/html", chatPage);
                     } else {
                         // 保存消息
