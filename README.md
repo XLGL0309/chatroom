@@ -54,7 +54,7 @@ ChatRoom/
 在项目根目录执行以下命令：
 
 ```bash
-g++ -o ChatRoomServer main.cpp src/network.cpp src/message.cpp src/user.cpp src/web.cpp src/utils.cpp -lws2_32
+g++ -o chatroom main.cpp src/network.cpp src/message.cpp src/user.cpp src/web.cpp src/utils.cpp -lws2_32
 ```
 
 **注意**：`-lws2_32` 选项仅在Windows平台需要，Linux/Unix平台请移除该选项。
@@ -65,10 +65,10 @@ g++ -o ChatRoomServer main.cpp src/network.cpp src/message.cpp src/user.cpp src/
 2. 运行服务器：
    ```bash
    # Windows
-   .\ChatRoomServer.exe
+   .\chatroom.exe
    
    # Linux/Unix
-   ./ChatRoomServer
+   ./chatroom
    ```
 3. 服务器将在8888端口启动
 4. **本地访问**：在服务器所在设备的浏览器中访问 `http://localhost:8888`
