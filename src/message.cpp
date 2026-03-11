@@ -9,29 +9,39 @@ void MessageManager::addMessage(const std::string& from, const std::string& to, 
     msg.from = from;
     msg.to = to;
     msg.content = content;
-    messageList.push_back(msg);
+    userMessages[to].push_back(msg);
+    // 清理该用户的过期消息
+    cleanExpiredMessagesForUser(to);
     std::cout << "Message sent: " << from << " -> " << to << ": " << content << std::endl;
 }
 
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
     std::lock_guard<std::mutex> lock(messageMutex);
-    cleanExpiredMessages();
-    
-    std::vector<Message> userMessages;
-    for (const auto& msg : messageList) {
-        if (msg.to == username) {
-            userMessages.push_back(msg);
-        }
-    }
-    return userMessages;
+    cleanExpiredMessagesForUser(username);
+    return userMessages[username];
 }
 
 void MessageManager::cleanExpiredMessages() {
     time_t now = time(nullptr);
-    auto it = messageList.begin();
-    while (it != messageList.end()) {
+    for (auto& [user, messages] : userMessages) {
+        auto it = messages.begin();
+        while (it != messages.end()) {
+            if (now - it->timestamp > 24 * 3600) {
+                it = messages.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+}
+
+void MessageManager::cleanExpiredMessagesForUser(const std::string& username) {
+    time_t now = time(nullptr);
+    auto& messages = userMessages[username];
+    auto it = messages.begin();
+    while (it != messages.end()) {
         if (now - it->timestamp > 24 * 3600) {
-            it = messageList.erase(it);
+            it = messages.erase(it);
         } else {
             ++it;
         }

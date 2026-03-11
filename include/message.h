@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <map>
 
 struct Message {
     std::string from;
@@ -16,13 +17,14 @@ struct Message {
 
 class MessageManager {
 private:
-    std::vector<Message> messageList;
+    std::map<std::string, std::vector<Message>> userMessages; // 按接收者分组存储消息
     std::mutex messageMutex;
 
 public:
     void addMessage(const std::string& from, const std::string& to, const std::string& content);
     std::vector<Message> getMessagesForUser(const std::string& username);
     void cleanExpiredMessages();
+    void cleanExpiredMessagesForUser(const std::string& username);
 };
 
 // 全局消息管理器实例
