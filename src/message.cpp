@@ -9,7 +9,7 @@ void MessageManager::addMessage(const std::string& from, const std::string& to, 
     msg.from = from;
     msg.to = to;
     msg.content = content;
-    userMessages[to].push_back(msg);
+    userMessages[to].emplace_back(msg);
     // 清理该用户的过期消息
     cleanExpiredMessagesForUser(to);
     std::cout << "消息发送: " << from << " -> " << to << ": " << content << std::endl;
