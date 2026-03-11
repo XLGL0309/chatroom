@@ -56,37 +56,82 @@
         
         // 轮询函数
         function pollMessages() {
-            // 创建XMLHttpRequest对象
-            const xhr = new XMLHttpRequest();
+            // 兼容所有浏览器的XMLHttpRequest创建
+            let xhr;
+            if (window.XMLHttpRequest) {
+                // 现代浏览器
+                xhr = new XMLHttpRequest();
+            } else {
+                // 旧版IE
+                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+            }
+            
             // 发送GET请求到API接口
             xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username), true);
+            
+            // 设置超时
+            xhr.timeout = 5000; // 5秒超时
+            
             // 处理响应
             xhr.onload = function() {
                 if (xhr.status === 200) {
-                    // 解析JSON响应
-                    const data = JSON.parse(xhr.responseText);
-                    // 更新消息显示
-                    const messagesDiv = document.getElementById('messages');
-                    if (data.messages && data.messages.length > 0) {
-                        let messagesHtml = '';
-                        data.messages.forEach(function(msg) {
-                            messagesHtml += '<div class="message-item"><span class="message-sender">' + msg.from + '</span>: <span class="message-content">' + msg.content + '</span></div>';
-                        });
-                        messagesDiv.innerHTML = messagesHtml;
-                    } else {
-                        messagesDiv.innerHTML = '';
+                    try {
+                        // 解析JSON响应
+                        const data = JSON.parse(xhr.responseText);
+                        // 更新消息显示
+                        updateMessages(data);
+                    } catch (e) {
+                        console.error('Error parsing JSON:', e);
                     }
+                } else {
+                    console.error('Request failed with status:', xhr.status);
                 }
             };
+            
+            // 处理错误
+            xhr.onerror = function() {
+                console.error('Network error occurred');
+            };
+            
+            // 处理超时
+            xhr.ontimeout = function() {
+                console.error('Request timed out');
+            };
+            
             // 发送请求
             xhr.send();
         }
         
-        // 开始轮询
-        setInterval(pollMessages, pollingInterval);
+        // 更新消息显示
+        function updateMessages(data) {
+            const messagesDiv = document.getElementById('messages');
+            if (data && data.messages && data.messages.length > 0) {
+                let messagesHtml = '';
+                data.messages.forEach(function(msg) {
+                    messagesHtml += '<div class="message-item"><span class="message-sender">' + msg.from + '</span>: <span class="message-content">' + msg.content + '</span></div>';
+                });
+                messagesDiv.innerHTML = messagesHtml;
+            } else {
+                messagesDiv.innerHTML = '';
+            }
+        }
         
-        // 页面加载时立即获取一次消息
-        window.onload = pollMessages;
+        // 开始轮询
+        function startPolling() {
+            // 立即执行一次
+            pollMessages();
+            // 设置定时器
+            setInterval(pollMessages, pollingInterval);
+        }
+        
+        // 页面加载完成后执行
+        if (window.addEventListener) {
+            window.addEventListener('load', startPolling);
+        } else if (window.attachEvent) {
+            window.attachEvent('onload', startPolling);
+        } else {
+            window.onload = startPolling;
+        }
     </script>
 </body>
 </html>
