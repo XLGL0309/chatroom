@@ -2,23 +2,44 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Chat Room Login</title>
+    <title>Chat Room</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        h1 { text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;}
-        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;box-sizing: border-box;  }
+        h1 { text-align: center; color: #333; }
+        h2 { text-align: center; color: #666; font-size: 16px; margin-bottom: 20px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); }
+        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; box-sizing: border-box; font-size: 14px; transition: background-color 0.3s; }
         button:hover { background: #45a049; }
+        button:active { background: #3d8b40; }
+        .form-section { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .error { color: red; margin: 10px 0; text-align: center; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Chat Room Login</h1>
-        <form action="/login" method="post">
-            <input type="text" name="username" placeholder="Enter username" required>
-            <button type="submit">Login</button>
-        </form>
+        <h1>Chat Room</h1>
+        
+        <!-- 登录表单 -->
+        <div class="form-section">
+            <h2>登录</h2>
+            <form action="/login" method="post">
+                <input type="text" name="username" placeholder="请输入用户名" required>
+                <input type="password" name="password" placeholder="请输入密码" required>
+                <button type="submit">登录</button>
+            </form>
+        </div>
+        
+        <!-- 注册表单 -->
+        <div class="form-section">
+            <h2>注册</h2>
+            <form action="/register" method="post">
+                <input type="text" name="username" placeholder="请输入用户名" required>
+                <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
+                <button type="submit">注册并登录</button>
+            </form>
+        </div>
     </div>
 </body>
 </html>

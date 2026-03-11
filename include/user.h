@@ -7,6 +7,7 @@
 
 struct User {
     std::string username;
+    std::string password;
     std::string ip;
 };
 
@@ -16,7 +17,8 @@ private:
     std::mutex userMutex;
 
 public:
-    bool addUser(const std::string& username, const std::string& ip);
+    bool registerUser(const std::string& username, const std::string& password, const std::string& ip);
+    bool loginUser(const std::string& username, const std::string& password, const std::string& ip);
     bool isValidUser(const std::string& username, const std::string& ip);
     bool userExists(const std::string& username);
 };

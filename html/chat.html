@@ -28,22 +28,22 @@
 <body>
     <div class="container">
         <h1>Chat Room</h1>
-        <div class="user-info">Welcome, %USERNAME%</div>
+        <div class="user-info">欢迎, %USERNAME%</div>
         
         <div class="send-section">
-            <h2>Send Message</h2>
+            <h2>发送消息</h2>
             <form action="/send" method="post">
                 <input type="hidden" name="from" value="%USERNAME%">
-                <input type="text" name="to" placeholder="Recipient username" required>
-                <textarea name="content" placeholder="Message content" rows="3" required></textarea>
-                <button type="submit">Send Message</button>
+                <input type="text" name="to" placeholder="请输入接收者用户名" required>
+                <textarea name="content" placeholder="请输入消息内容" rows="3" required></textarea>
+                <button type="submit">发送</button>
                 %STATUS%
             </form>
         </div>
         
         <div class="message-section">
-            <h2>Messages</h2>
-            <div class="status-info">Messages will update automatically</div>
+            <h2>消息</h2>
+            <div class="status-info">消息将自动更新</div>
             <div id="messages">%MESSAGES%</div>
         </div>
     </div>
@@ -84,18 +84,18 @@
                         console.error('Error parsing JSON:', e);
                     }
                 } else {
-                    console.error('Request failed with status:', xhr.status);
+                    console.error('请求失败，状态码:', xhr.status);
                 }
             };
             
             // 处理错误
             xhr.onerror = function() {
-                console.error('Network error occurred');
+                console.error('网络错误');
             };
             
             // 处理超时
             xhr.ontimeout = function() {
-                console.error('Request timed out');
+                console.error('请求超时');
             };
             
             // 发送请求

@@ -51,9 +51,9 @@ std::string generatePage(const std::string& username, const std::string& status 
     size_t statusPos = page.find("%STATUS%");
     if (statusPos != std::string::npos) {
         if (!error.empty()) {
-            page.replace(statusPos, 8, "<div class=\"error\">Error: " + error + "</div>");
+            page.replace(statusPos, 8, "<div class=\"error\">错误：" + error + "</div>");
         } else if (status == "success") {
-            page.replace(statusPos, 8, "<div style=\"color: green; margin: 10px 0;\">Message sent successfully!</div>");
+            page.replace(statusPos, 8, "<div style=\"color: green; margin: 10px 0;\">消息发送成功！</div>");
         } else {
             page.replace(statusPos, 8, "");
         }
@@ -111,7 +111,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             responseWithHeaders += json;
             response = responseWithHeaders;
         } else {
-            response = createHttpResponse(404, "Not Found", "text/plain", "Not Found");
+            response = createHttpResponse(404, "Not Found", "text/plain", "页面不存在");
         }
     } else if (method == "POST") {
         if (path == "/login") {
@@ -120,11 +120,12 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             if (bodyPos != std::string::npos) {
                 std::string body = request.substr(bodyPos + 4);
                 std::string username = parseFormData(body, "username");
+                std::string password = parseFormData(body, "password");
                 // 解码HTML实体，确保处理的是原始中文字符
                 username = htmlEntityDecode(username);
                 
-                if (!username.empty() && isValidUsername(username)) {
-                    bool allowLogin = g_userManager.addUser(username, clientIP);
+                if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
+                    bool allowLogin = g_userManager.loginUser(username, password, clientIP);
                     
                     if (allowLogin) {
                         // 对用户名进行URL编码
@@ -132,11 +133,38 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         // 跳转到聊天页面
                         response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername);
                     } else {
-                        // 用户名已被其他IP使用，返回错误
-                        response = createHttpResponse(403, "Forbidden", "text/plain", "Username is already used by another device");
+                        // 用户名或密码错误，返回错误
+                        response = createHttpResponse(401, "Unauthorized", "text/plain", "用户名或密码错误");
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid username format");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "输入无效：用户名必须有效且密码至少6个字符");
+                }
+            } else {
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
+            }
+        } else if (path == "/register") {
+            // 处理注册
+            size_t bodyPos = request.find("\r\n\r\n");
+            if (bodyPos != std::string::npos) {
+                std::string body = request.substr(bodyPos + 4);
+                std::string username = parseFormData(body, "username");
+                std::string password = parseFormData(body, "password");
+                // 解码HTML实体，确保处理的是原始中文字符
+                username = htmlEntityDecode(username);
+                
+                if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
+                    bool registered = g_userManager.registerUser(username, password, clientIP);
+                    
+                    if (registered) {
+                        // 注册成功，自动登录并跳转到聊天页面
+                        std::string encodedUsername = urlEncode(username);
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername);
+                    } else {
+                        // 用户名已存在，返回错误
+                        response = createHttpResponse(409, "Conflict", "text/plain", "用户名已存在");
+                    }
+                } else {
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters");
                 }
             } else {
                 response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
@@ -157,7 +185,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     // 检查是否给自己发消息
                     if (from == to) {
                         // 不能给自己发消息，返回错误页面
-                        std::string errorPage = generatePage(from, "", "You cannot send messages to yourself");
+                        std::string errorPage = generatePage(from, "", "你不能给自己发送消息");
                         response = createHttpResponse(200, "OK", "text/html", errorPage);
                     } else if (!g_userManager.userExists(to)) {
                         // 目标用户不存在，返回错误页面
@@ -179,10 +207,10 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                 response = createHttpResponse(400, "Bad Request", "text/plain", "Bad Request");
             }
         } else {
-            response = createHttpResponse(404, "Not Found", "text/plain", "Not Found");
+            response = createHttpResponse(404, "Not Found", "text/plain", "页面不存在");
         }
     } else {
-        response = createHttpResponse(405, "Method Not Allowed", "text/plain", "Method Not Allowed");
+        response = createHttpResponse(405, "Method Not Allowed", "text/plain", "不允许的请求方法");
     }
 
     return response;

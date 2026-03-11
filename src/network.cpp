@@ -46,8 +46,8 @@ SOCKET createServerSocket(int port) {
         exit(1);
     }
 
-    std::cout << "Server started on port " << port << std::endl;
-    std::cout << "Local IP address: " << inet_ntoa(serverAddr.sin_addr) << std::endl;
+    std::cout << "服务器已启动，端口: " << port << std::endl;
+    std::cout << "本地IP地址: " << inet_ntoa(serverAddr.sin_addr) << std::endl;
 
     return serverSocket;
 }

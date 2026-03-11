@@ -12,7 +12,7 @@ void MessageManager::addMessage(const std::string& from, const std::string& to, 
     userMessages[to].push_back(msg);
     // 清理该用户的过期消息
     cleanExpiredMessagesForUser(to);
-    std::cout << "Message sent: " << from << " -> " << to << ": " << content << std::endl;
+    std::cout << "消息发送: " << from << " -> " << to << ": " << content << std::endl;
 }
 
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
