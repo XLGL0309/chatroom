@@ -178,16 +178,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                         g_messageManager.addMessage(from, to, content);
                         
                         // 对用户名进行URL编码
-                        std::string encodedFrom;
-                        for (char c : from) {
-                            if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-                                encodedFrom += c;
-                            } else {
-                                char hex[3];
-                                sprintf(hex, "%02X", (unsigned char)c);
-                                encodedFrom += "%" + std::string(hex);
-                            }
-                        }
+                        std::string encodedFrom = urlEncode(from);
                         // 跳回查看消息页面
                         response = "HTTP/1.1 302 Found\r\nLocation: /view?username=" + encodedFrom + "\r\n\r\n";
                     }
