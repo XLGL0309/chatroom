@@ -30,10 +30,10 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
         response += "Content-Type: " + contentType + "\r\n";
         response += "Content-Length: " + std::to_string(content.length()) + "\r\n";
     }
-    
+    //添加空行
     response += "\r\n";
     
-    // 非重定向响应需要添加内容
+    // 非重定向响应需要添加响应体
     if (location.empty()) {
         response += content;
     }
