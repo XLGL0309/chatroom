@@ -96,29 +96,6 @@ std::string urlEncode(const std::string& str) {
 }
 
 // HTML实体解码函数
-// 辅助函数：将Unicode码点转换为UTF-8编码并添加到字符串
-void appendUtf8(std::string& str, int code) {
-    if (code <= 0x7F) {
-        // 1字节：ASCII
-        str += static_cast<char>(code);
-    } else if (code <= 0x7FF) {
-        // 2字节UTF-8
-        str += static_cast<char>(0xC0 | (code >> 6));
-        str += static_cast<char>(0x80 | (code & 0x3F));
-    } else if (code <= 0xFFFF) {
-        // 3字节UTF-8
-        str += static_cast<char>(0xE0 | (code >> 12));
-        str += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
-        str += static_cast<char>(0x80 | (code & 0x3F));
-    } else if (code <= 0x10FFFF) {
-        // 4字节UTF-8 (支持emoji等)
-        str += static_cast<char>(0xF0 | (code >> 18));
-        str += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
-        str += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
-        str += static_cast<char>(0x80 | (code & 0x3F));
-    }
-}
-
 std::string htmlEntityDecode(const std::string& str) {
     // 预分配空间，减少内存重新分配
     std::string decoded;
@@ -153,8 +130,29 @@ std::string htmlEntityDecode(const std::string& str) {
                     try {
                         int code = std::stoi(numStr);
                         if (code >= 0 && code <= 0x10FFFF) {
-                            // 处理UTF-8编码
-                            appendUtf8(decoded, code);
+                            // 处理UTF-8编码（使用lambda表达式）
+                            auto appendUtf8 = [&decoded](int code) {
+                                if (code <= 0x7F) {
+                                    // 1字节：ASCII
+                                    decoded += static_cast<char>(code);
+                                } else if (code <= 0x7FF) {
+                                    // 2字节UTF-8
+                                    decoded += static_cast<char>(0xC0 | (code >> 6));
+                                    decoded += static_cast<char>(0x80 | (code & 0x3F));
+                                } else if (code <= 0xFFFF) {
+                                    // 3字节UTF-8
+                                    decoded += static_cast<char>(0xE0 | (code >> 12));
+                                    decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+                                    decoded += static_cast<char>(0x80 | (code & 0x3F));
+                                } else if (code <= 0x10FFFF) {
+                                    // 4字节UTF-8 (支持emoji等)
+                                    decoded += static_cast<char>(0xF0 | (code >> 18));
+                                    decoded += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
+                                    decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
+                                    decoded += static_cast<char>(0x80 | (code & 0x3F));
+                                }
+                            };
+                            appendUtf8(code);
                             i = end + 1;
                             continue;
                         }

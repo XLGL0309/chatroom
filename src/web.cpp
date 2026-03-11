@@ -3,83 +3,23 @@
 #include "../include/user.h"
 #include "../include/message.h"
 #include <iostream>
+#include <fstream>
+
+// 读取文件内容的辅助函数
+std::string readFile(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return "";
+    }
+    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
+    return content;
+}
 
 // HTML页面
-const std::string htmlLogin = R"(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Chat Room Login</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        h1 { text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box;}
-        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;box-sizing: border-box;  }
-        button:hover { background: #45a049; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Chat Room Login</h1>
-        <form action="/login" method="post">
-            <input type="text" name="username" placeholder="Enter username" required>
-            <button type="submit">Login</button>
-        </form>
-    </div>
-</body>
-</html>
-)";
-
-const std::string htmlChat = R"(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Chat Room</title>
-    <style>
-        * {box-sizing: border-box;}
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h1 { text-align: center; }
-        .user-info { text-align: right; margin-bottom: 20px; font-weight: bold; }
-        .message-section, .send-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; resize: vertical}
-        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #45a049; }
-        #messages { margin-top: 10px; padding: 10px; border: 1px solid #eee; min-height: 200px;box-sizing: border-box;}
-        .error { color: red; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Chat Room</h1>
-        <div class="user-info">Welcome, %USERNAME%</div>
-        
-        <div class="send-section">
-            <h2>Send Message</h2>
-            <form action="/send" method="post">
-                <input type="hidden" name="from" value="%USERNAME%">
-                <input type="text" name="to" placeholder="Recipient username" required>
-                <textarea name="content" placeholder="Message content" rows="3" required></textarea>
-                <button type="submit">Send Message</button>
-                %ERROR%
-            </form>
-        </div>
-        
-        <div class="message-section">
-            <h2>View Messages</h2>
-            <form action="/view" method="get">
-                <input type="hidden" name="username" value="%USERNAME%">
-                <button type="submit">View My Messages</button>
-            </form>
-            <div id="messages">%MESSAGES%</div>
-        </div>
-    </div>
-</body>
-</html>
-)";
+const std::string htmlLogin = readFile("html/login.html");
+const std::string htmlChat = readFile("html/chat.html");
 
 std::string handleHttpRequest(const std::string& request, const std::string& clientIP) {
     // 解析HTTP请求
