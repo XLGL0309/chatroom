@@ -7,14 +7,22 @@
         * {box-sizing: border-box;}
         body { font-family: Arial, sans-serif; margin: 20px; }
         .container { max-width: 600px; margin: 0 auto; }
-        h1 { text-align: center; }
-        .user-info { text-align: right; margin-bottom: 20px; font-weight: bold; }
-        .message-section, .send-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; resize: vertical}
-        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        h1 { text-align: center; color: #333; }
+        .user-info { text-align: right; margin-bottom: 20px; font-weight: bold; color: #4CAF50; }
+        .message-section, .send-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9; }
+        h2 { color: #333; margin-top: 0; }
+        input, textarea { width: 100%; padding: 10px; margin: 10px 0; resize: vertical; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input:focus, textarea:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.3s; }
         button:hover { background: #45a049; }
-        #messages { margin-top: 10px; padding: 10px; border: 1px solid #eee; min-height: 200px;box-sizing: border-box;}
-        .error { color: red; margin: 10px 0; }
+        button:active { background: #3d8b40; }
+        #messages { margin-top: 10px; padding: 15px; border: 1px solid #eee; min-height: 200px; box-sizing: border-box; background-color: white; border-radius: 4px; }
+        .error { color: red; margin: 10px 0; padding: 10px; background-color: #ffebee; border-left: 4px solid #f44336; border-radius: 4px; }
+        .success { color: green; margin: 10px 0; padding: 10px; background-color: #e8f5e8; border-left: 4px solid #4CAF50; border-radius: 4px; }
+        .message-item { margin-bottom: 10px; padding: 8px; border-bottom: 1px solid #eee; }
+        .message-sender { font-weight: bold; color: #4CAF50; }
+        .message-content { margin-left: 10px; }
+        .status-info { font-size: 12px; color: #999; margin-top: 5px; text-align: right; }
     </style>
 </head>
 <body>
@@ -34,13 +42,51 @@
         </div>
         
         <div class="message-section">
-            <h2>View Messages</h2>
-            <form action="/view" method="get">
-                <input type="hidden" name="username" value="%USERNAME%">
-                <button type="submit">View My Messages</button>
-            </form>
+            <h2>Messages</h2>
+            <div class="status-info">Messages will update automatically</div>
             <div id="messages">%MESSAGES%</div>
         </div>
     </div>
+
+    <script>
+        // 获取当前用户名
+        const username = "%USERNAME%";
+        // 轮询间隔（毫秒）
+        const pollingInterval = 3000; // 3秒
+        
+        // 轮询函数
+        function pollMessages() {
+            // 创建XMLHttpRequest对象
+            const xhr = new XMLHttpRequest();
+            // 发送GET请求到API接口
+            xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username), true);
+            // 处理响应
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    // 解析JSON响应
+                    const data = JSON.parse(xhr.responseText);
+                    // 更新消息显示
+                    const messagesDiv = document.getElementById('messages');
+                    if (data.messages && data.messages.length > 0) {
+                        let messagesHtml = '';
+                        data.messages.forEach(function(msg) {
+                            messagesHtml += '<div class="message-item"><span class="message-sender">' + msg.from + '</span>: <span class="message-content">' + msg.content + '</span></div>';
+                        });
+                        messagesDiv.innerHTML = messagesHtml;
+                    } else {
+                        messagesDiv.innerHTML = '';
+                    }
+                }
+            };
+            // 发送请求
+            xhr.send();
+        }
+        
+        // 开始轮询
+        setInterval(pollMessages, pollingInterval);
+        
+        // 页面加载时立即获取一次消息
+        window.onload = pollMessages;
+    </script>
 </body>
 </html>
