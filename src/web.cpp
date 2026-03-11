@@ -118,10 +118,10 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             
             // 长轮询等待时间（秒）
             const int maxWaitTime = 30;
-            int waitTime = 0;
+            time_t startTime = time(nullptr);
             
             // 等待新消息
-            while (waitTime < maxWaitTime) {
+            while (true) {
                 auto messages = g_messageManager.getMessagesForUser(username);
                 if (messages.size() > lastCount) {
                     // 有新消息，立即返回
@@ -137,9 +137,14 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                     break;
                 }
                 
+                // 检查是否超时
+                time_t currentTime = time(nullptr);
+                if (currentTime - startTime >= maxWaitTime) {
+                    break;
+                }
+                
                 // 没有新消息，等待1秒后再次检查
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                waitTime++;
             }
             
             // 超时后返回空消息
