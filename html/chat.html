@@ -51,11 +51,11 @@
     <script>
         // 获取当前用户名
         const username = "%USERNAME%";
-        // 轮询间隔（毫秒）
-        const pollingInterval = 3000; // 3秒
+        // 当前消息数量
+        let currentMessageCount = 0;
         
-        // 轮询函数
-        function pollMessages() {
+        // 长轮询函数
+        function longPollMessages() {
             // 兼容所有浏览器的XMLHttpRequest创建
             let xhr;
             if (window.XMLHttpRequest) {
@@ -66,11 +66,11 @@
                 xhr = new ActiveXObject("Microsoft.XMLHTTP");
             }
             
-            // 发送GET请求到API接口
-            xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username), true);
+            // 发送GET请求到API接口，带上当前消息数量
+            xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username) + '&lastCount=' + currentMessageCount, true);
             
-            // 设置超时
-            xhr.timeout = 5000; // 5秒超时
+            // 设置超时（长轮询超时时间要大于服务器端的等待时间）
+            xhr.timeout = 35000; // 35秒超时
             
             // 处理响应
             xhr.onload = function() {
@@ -86,16 +86,23 @@
                 } else {
                     console.error('请求失败，状态码:', xhr.status);
                 }
+                
+                // 无论成功失败，都继续下一次轮询
+                longPollMessages();
             };
             
             // 处理错误
             xhr.onerror = function() {
                 console.error('网络错误');
+                // 错误后继续轮询
+                longPollMessages();
             };
             
             // 处理超时
             xhr.ontimeout = function() {
                 console.error('请求超时');
+                // 超时后继续轮询
+                longPollMessages();
             };
             
             // 发送请求
@@ -111,26 +118,27 @@
                     messagesHtml += '<div class="message-item"><span class="message-sender">' + msg.from + '</span>: <span class="message-content">' + msg.content + '</span></div>';
                 });
                 messagesDiv.innerHTML = messagesHtml;
+                // 更新当前消息数量
+                currentMessageCount = data.messages.length;
             } else {
                 messagesDiv.innerHTML = '';
+                currentMessageCount = 0;
             }
         }
         
-        // 开始轮询
-        function startPolling() {
+        // 开始长轮询
+        function startLongPolling() {
             // 立即执行一次
-            pollMessages();
-            // 设置定时器
-            setInterval(pollMessages, pollingInterval);
+            longPollMessages();
         }
         
         // 页面加载完成后执行
         if (window.addEventListener) {
-            window.addEventListener('load', startPolling);
+            window.addEventListener('load', startLongPolling);
         } else if (window.attachEvent) {
-            window.attachEvent('onload', startPolling);
+            window.attachEvent('onload', startLongPolling);
         } else {
-            window.onload = startPolling;
+            window.onload = startLongPolling;
         }
     </script>
 </body>

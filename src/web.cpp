@@ -4,6 +4,8 @@
 #include "../include/message.h"
 #include <iostream>
 #include <fstream>
+#include <thread>
+#include <chrono>
 
 // 读取文件内容的辅助函数
 std::string readFile(const std::string& filename) {
@@ -45,7 +47,11 @@ std::string generatePage(const std::string& username, const std::string& status 
         userPos = page.find("%USERNAME%", userPos + username.length());
     }
     
-    // 消息区域由JavaScript轮询填充，无需处理
+    // 替换消息占位符为空白，由JavaScript轮询填充
+    size_t messagesPos = page.find("%MESSAGES%");
+    if (messagesPos != std::string::npos) {
+        page.replace(messagesPos, 10, "");
+    }
     
     // 设置状态信息
     size_t statusPos = page.find("%STATUS%");
@@ -98,18 +104,55 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             std::string chatPage = generatePage(username, status, error);
             response = createHttpResponse(200, "OK", "text/html", chatPage);
         } else if (path.find("/api/messages") == 0) {
-            // 处理API请求，返回JSON格式的消息
+            // 处理API请求，返回JSON格式的消息（长轮询）
             std::string username = parseUrlParam(path, "username");
-            auto messages = g_messageManager.getMessagesForUser(username);
-            std::string json = generateMessagesJson(messages);
-            // 确保返回正确的Content-Type和CORS头
-            std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
-            responseWithHeaders += "Content-Type: application/json\r\n";
-            responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
-            responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
-            responseWithHeaders += "\r\n";
-            responseWithHeaders += json;
-            response = responseWithHeaders;
+            std::string lastMessageCount = parseUrlParam(path, "lastCount");
+            int lastCount = 0;
+            if (!lastMessageCount.empty()) {
+                try {
+                    lastCount = std::stoi(lastMessageCount);
+                } catch (...) {
+                    lastCount = 0;
+                }
+            }
+            
+            // 长轮询等待时间（秒）
+            const int maxWaitTime = 30;
+            int waitTime = 0;
+            
+            // 等待新消息
+            while (waitTime < maxWaitTime) {
+                auto messages = g_messageManager.getMessagesForUser(username);
+                if (messages.size() > lastCount) {
+                    // 有新消息，立即返回
+                    std::string json = generateMessagesJson(messages);
+                    // 确保返回正确的Content-Type和CORS头
+                    std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
+                    responseWithHeaders += "Content-Type: application/json\r\n";
+                    responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
+                    responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
+                    responseWithHeaders += "\r\n";
+                    responseWithHeaders += json;
+                    response = responseWithHeaders;
+                    break;
+                }
+                
+                // 没有新消息，等待1秒后再次检查
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                waitTime++;
+            }
+            
+            // 超时后返回空消息
+            if (response.empty()) {
+                std::string json = "{\"messages\": []}";
+                std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
+                responseWithHeaders += "Content-Type: application/json\r\n";
+                responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
+                responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
+                responseWithHeaders += "\r\n";
+                responseWithHeaders += json;
+                response = responseWithHeaders;
+            }
         } else {
             response = createHttpResponse(404, "Not Found", "text/plain", "页面不存在");
         }
