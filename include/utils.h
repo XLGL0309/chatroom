@@ -24,4 +24,7 @@ std::string parseFormData(const std::string& data, const std::string& key);
 // 获取内容类型
 std::string getContentType(const std::string& path);
 
+// 解析URL参数
+std::string parseUrlParam(const std::string& url, const std::string& key);
+
 #endif // UTILS_H

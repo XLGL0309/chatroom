@@ -201,3 +201,34 @@ std::string getContentType(const std::string& path) {
     if (path.find(".js") != std::string::npos) return "application/javascript";
     return "text/plain";
 }
+
+// 解析URL参数
+std::string parseUrlParam(const std::string& url, const std::string& key) {
+    // 查找查询参数开始位置
+    size_t queryPos = url.find("?");
+    if (queryPos == std::string::npos) {
+        return "";
+    }
+    
+    std::string query = url.substr(queryPos + 1);
+    
+    // 查找指定参数
+    size_t paramPos = query.find(key + "=");
+    if (paramPos == std::string::npos) {
+        return "";
+    }
+    
+    // 提取参数值
+    size_t valueStart = paramPos + key.length() + 1;
+    size_t valueEnd = query.find("&", valueStart);
+    std::string value;
+    
+    if (valueEnd != std::string::npos) {
+        value = query.substr(valueStart, valueEnd - valueStart);
+    } else {
+        value = query.substr(valueStart);
+    }
+    
+    // URL解码
+    return urlDecode(value);
+}
