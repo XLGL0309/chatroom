@@ -1,4 +1,4 @@
-# Chat Room Server
+# ChatRoom 服务器
 
 一个基于C++和Socket编程实现的简单聊天室服务器，支持多用户实时消息收发，具备用户认证、消息管理和Web界面交互功能。
 
@@ -16,66 +16,297 @@
 ## 目录结构
 
 ```
-ChatRoom/
-├── CMakeLists.txt        # 构建文件
-├── main.cpp              # 主文件
-├── html/                 # HTML页面目录
-│   ├── login.html        # 登录页面
-│   └── chat.html         # 聊天页面
-├── include/              # 头文件目录
-│   ├── network.h         # 网络相关功能
-│   ├── message.h         # 消息管理功能
-│   ├── user.h            # 用户管理功能
-│   ├── web.h             # Web页面和HTTP处理
-│   └── utils.h           # 工具函数
-└── src/                  # 源文件目录
-    ├── network.cpp       # 网络相关实现
-    ├── message.cpp       # 消息管理实现
-    ├── user.cpp          # 用户管理实现
-    ├── web.cpp           # Web页面和HTTP处理实现
-    └── utils.cpp         # 工具函数实现
+chatroom/
+├── html/              # HTML页面目录
+│   ├── login.html     # 登录页面
+│   └── chat.html      # 聊天页面
+├── include/           # 头文件目录
+│   ├── database.h     # 数据库管理
+│   ├── message.h      # 消息处理
+│   ├── network.h      # 网络通信
+│   ├── user.h         # 用户管理
+│   ├── utils.h        # 工具函数
+│   └── web.h          # HTTP请求处理
+├── src/               # 源文件目录
+│   ├── database.cpp   # 数据库实现
+│   ├── message.cpp    # 消息实现
+│   ├── network.cpp    # 网络实现
+│   ├── user.cpp       # 用户实现
+│   ├── utils.cpp      # 工具函数实现
+│   └── web.cpp        # HTTP请求处理实现
+├── main.cpp           # 主服务器入口点
+├── CMakeLists.txt     # CMake配置
+├── run.bat            # Windows构建和运行脚本
+├── init_database.sql  # 数据库初始化脚本
+└── README.md          # 此文件
 ```
 
-## 编译步骤
+## 安装和设置
 
-### 方法一：使用CMake（推荐）
+### 1. 数据库设置
 
-1. 确保已安装CMake和C++编译器
-2. 在项目根目录创建build目录：
+1. 创建一个名为 `chatroom` 的MySQL数据库
+2. 运行初始化脚本创建必要的表：
    ```bash
-   mkdir build && cd build
+   mysql -u root -p chatroom < init_database.sql
    ```
-3. 运行CMake生成构建文件：
+
+### 2. 构建和运行
+
+#### Windows系统：
+
+1. 双击 `run.bat` 构建并启动服务器
+2. 脚本会自动：
+   - 清理之前的构建文件
+   - 运行CMake生成构建文件
+   - 编译项目
+   - 启动服务器
+
+#### Linux系统：
+
+1. 在项目目录中打开终端
+2. 运行以下命令：
    ```bash
-   cmake ..
-   ```
-4. 编译项目：
-   ```bash
+   cmake .
    cmake --build .
-   ```
-
-### 方法二：直接使用g++
-
-在项目根目录执行以下命令：
-
-```bash
-g++ -o chatroom main.cpp src/network.cpp src/message.cpp src/user.cpp src/web.cpp src/utils.cpp -lws2_32
-```
-
-**注意**：`-lws2_32` 选项仅在Windows平台需要，Linux/Unix平台请移除该选项。
-
-## 运行服务器
-
-1. 编译完成后，在项目根目录或build目录找到生成的可执行文件
-2. 运行服务器：
-   ```bash
-   # Windows
-   .\chatroom.exe
-   
-   # Linux/Unix
    ./chatroom
    ```
-3. 服务器将在8888端口启动
+
+### 3. MySQL连接配置
+
+默认情况下，服务器连接MySQL的参数：
+- 主机：localhost
+- 用户：root
+- 数据库：chatroom
+- 密码：（启动时提示输入）
+
+## 使用说明
+
+1. **启动服务器**
+   - 运行 `run.bat` (Windows) 或 `./chatroom` (Linux)
+   - 输入MySQL密码
+
+2. **访问聊天界面**
+   - 打开网页浏览器，导航到 `http://localhost:8888`
+   - 注册新用户或使用现有凭据登录
+
+3. **发送消息**
+   - 登录后，输入接收者用户名和消息内容
+   - 点击"发送"按钮发送消息
+
+4. **接收消息**
+   - 新消息会通过长轮询自动显示
+   - 消息存储24小时后会被自动清理
+
+## API接口
+
+- **GET /**: 登录页面
+- **POST /login**: 用户登录
+- **POST /register**: 用户注册
+- **GET /view**: 聊天界面
+- **POST /send**: 发送消息
+- **GET /api/messages**: 获取消息（长轮询）
+
+## 服务器命令
+
+服务器运行时，可在控制台输入以下命令：
+- `exit`: 停止服务器
+- `quit`: 停止服务器
+- `stop`: 停止服务器
+
+## 故障排除
+
+### 常见问题
+
+1. **MySQL连接失败**
+   - 确保MySQL服务器正在运行
+   - 验证MySQL密码是否正确
+   - 检查 `chatroom` 数据库是否存在
+
+2. **端口8888已被占用**
+   - 在 `main.cpp` (第65行) 中更改端口为可用端口
+   - 终止使用端口8888的任何进程
+
+3. **中文字符问题**
+   - 服务器现在可以正确处理中文用户名和消息
+   - 确保MySQL数据库使用UTF-8编码
+
+## 许可证
+
+MIT许可证
+
+## 贡献
+
+欢迎贡献！请随时提交Pull Request。
+
+## 致谢
+
+- MySQL C API 用于数据库操作
+- 标准C++11 用于跨平台兼容性
+- HTTP长轮询 用于实时通信
+
+---
+
+# ChatRoom Server
+
+A lightweight chat room server implemented in C++ with HTTP-based communication and MySQL storage.
+
+## Features
+
+- **User Management**
+  - User registration with validation
+  - User login with password verification
+  - Support for Chinese usernames
+
+- **Message System**
+  - Send and receive private messages
+  - Message persistence in MySQL database
+  - Automatic cleanup of expired messages (24 hours old)
+
+- **Real-time Communication**
+  - Long polling for near real-time message updates
+  - HTTP-based API for message retrieval
+
+- **Cross-platform Support**
+  - Windows and Linux compatibility
+  - Standard C++11 implementation
+
+- **Security**
+  - Input validation and sanitization
+  - HTML entity decoding for proper character handling
+  - URL encoding for safe parameter passing
+
+## Project Structure
+
+```
+chatroom/
+├── html/              # HTML frontend files
+│   ├── login.html     # Login and registration page
+│   └── chat.html      # Chat interface
+├── include/           # Header files
+│   ├── database.h     # Database management
+│   ├── message.h      # Message handling
+│   ├── network.h      # Network communication
+│   ├── user.h         # User management
+│   ├── utils.h        # Utility functions
+│   └── web.h          # HTTP request handling
+├── src/               # Source files
+│   ├── database.cpp   # Database implementation
+│   ├── message.cpp    # Message implementation
+│   ├── network.cpp    # Network implementation
+│   ├── user.cpp       # User implementation
+│   ├── utils.cpp      # Utility functions implementation
+│   └── web.cpp        # HTTP request handling implementation
+├── main.cpp           # Main server entry point
+├── CMakeLists.txt     # CMake configuration
+├── run.bat            # Windows build and run script
+├── init_database.sql  # Database initialization script
+└── README.md          # This file
+```
+
+## Installation and Setup
+
+### 1. Database Setup
+
+1. Create a MySQL database named `chatroom`
+2. Run the initialization script to create necessary tables:
+   ```bash
+   mysql -u root -p chatroom < init_database.sql
+   ```
+
+### 2. Build and Run
+
+#### On Windows:
+
+1. Double-click `run.bat` to build and start the server
+2. The script will automatically:
+   - Clean previous build files
+   - Run CMake to generate build files
+   - Compile the project
+   - Start the server
+
+#### On Linux:
+
+1. Open a terminal in the project directory
+2. Run the following commands:
+   ```bash
+   cmake .
+   cmake --build .
+   ./chatroom
+   ```
+
+### 3. Configure MySQL Connection
+
+By default, the server connects to MySQL with:
+- Host: localhost
+- User: root
+- Database: chatroom
+- Password: (prompted at startup)
+
+## Usage
+
+1. **Start the Server**
+   - Run `run.bat` (Windows) or `./chatroom` (Linux)
+   - Enter your MySQL password when prompted
+
+2. **Access the Chat Interface**
+   - Open a web browser and navigate to `http://localhost:8888`
+   - Register a new user or login with existing credentials
+
+3. **Send Messages**
+   - After logging in, enter the recipient's username and message content
+   - Click "Send" to deliver the message
+
+4. **Receive Messages**
+   - New messages will appear automatically via long polling
+   - Messages are stored for 24 hours before being automatically cleaned
+
+## API Endpoints
+
+- **GET /**: Login page
+- **POST /login**: User login
+- **POST /register**: User registration
+- **GET /view**: Chat interface
+- **POST /send**: Send a message
+- **GET /api/messages**: Get messages (long polling)
+
+## Server Commands
+
+While the server is running, you can enter the following commands in the console:
+- `exit`: Stop the server
+- `quit`: Stop the server
+- `stop`: Stop the server
+
+## Troubleshooting
+
+### Common Issues
+
+1. **MySQL Connection Failed**
+   - Ensure MySQL server is running
+   - Verify your MySQL password is correct
+   - Check that the `chatroom` database exists
+
+2. **Port 8888 Already in Use**
+   - Change the port in `main.cpp` (line 65) to an available port
+   - Kill any process using port 8888
+
+3. **Chinese Character Issues**
+   - The server now properly handles Chinese usernames and messages
+   - Ensure your MySQL database is using UTF-8 encoding
+
+## License
+
+MIT License
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Acknowledgments
+
+- MySQL C API for database operations
+- Standard C++11 for cross-platform compatibility
+- HTTP long polling for real-time communication
 4. **本地访问**：在服务器所在设备的浏览器中访问 `http://localhost:8888`
 5. **内网访问**：在同一局域网内的其他设备浏览器中访问 `http://[服务器IP地址]:8888`
    - 服务器IP地址可以在服务器启动时的日志中看到（Local IP address）
