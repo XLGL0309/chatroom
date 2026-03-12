@@ -108,11 +108,11 @@ chatroom/
 ## 使用说明
 
 1. **编译项目**
-   - Windows: 在根目录运行 `.ake.bat`
+   - Windows: 在根目录运行 `make.bat`
    - Linux: 在项目目录运行 `cmake . && cmake --build .`
 
 2. **启动服务器**
-   - Windows: 运行 `.hatroom.exe`
+   - Windows: 运行 `chatroom.exe`
    - Linux: 运行 `./chatroom`
    - 输入MySQL密码
 
@@ -303,11 +303,11 @@ chatroom/
 ## Usage
 
 1. **Compile the Project**
-   - Windows: Run `.ake.bat` in the root directory
+   - Windows: Run `make.bat` in the root directory
    - Linux: Run `cmake . && cmake --build .` in the project directory
 
 2. **Start the Server**
-   - Windows: Run `.hatroom.exe`
+   - Windows: Run `chatroom.exe`
    - Linux: Run `./chatroom`
    - Enter your MySQL password when prompted
 
@@ -369,34 +369,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - MySQL C API for database operations
 - Standard C++11 for cross-platform compatibility
 - HTTP long polling for real-time communication
-4. **本地访问**：在服务器所在设备的浏览器中访问 `http://localhost:8888`
-5. **内网访问**：在同一局域网内的其他设备浏览器中访问 `http://[服务器IP地址]:8888`
-   - 服务器IP地址可以在服务器启动时的日志中看到（Local IP address）
-   - 例如：`http://192.168.1.100:8888`
-6. **公网访问**：通过NAT服务器配置，使聊天室可以对互联网上的所有设备提供服务
-   - **配置步骤**：
-     1. 登录您的路由器管理界面
-     2. 找到"端口转发"或"NAT服务器"设置
-     3. 添加一条转发规则：
-        - 外部端口：任意未被占用的端口（如8888）
-        - 内部IP地址：服务器在局域网内的IP地址
-        - 内部端口：8888
-     4. 保存配置
-   - **访问方式**：在公网设备浏览器中访问 `http://[您的公网IP地址]:[外部端口]`
-   - **注意**：需要确保您的网络服务商没有封锁相关端口，且路由器具有公网IP地址
-
-## 使用说明
-
-1. **注册**：在登录页面填写用户名和密码（至少6位），点击"注册并登录"按钮
-2. **登录**：在登录页面填写已注册的用户名和密码，点击"登录"按钮
-3. **发送消息**：在聊天页面的"发送消息"区域填写接收者用户名和消息内容，点击"发送"按钮
-4. **查看消息**：聊天页面的"消息"区域会自动更新显示收到的消息（使用长轮询机制实时推送）
-
-## 技术栈
-
-- **语言**：C++11
-- **网络**：Socket API（跨平台兼容）
-- **Web**：HTTP协议、HTML5、JavaScript
 - **并发**：C++11线程库、互斥锁
 - **构建工具**：CMake
 - **实时通信**：长轮询机制
