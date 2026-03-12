@@ -1,7 +1,7 @@
 #include "../include/utils.h"
 #include <cctype>
 #include <unordered_map>
-// HTML转义函数，防止XSS攻击
+// HTML escape function to prevent XSS attacks
 std::string htmlEscape(const std::string& str) {
     std::string escaped;
     for (char c : str) {
@@ -17,7 +17,7 @@ std::string htmlEscape(const std::string& str) {
     return escaped;
 }
 
-// 生成HTTP响应
+// Generate HTTP response
 std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location) {
     std::string response;
     response += "HTTP/1.1 " + std::to_string(statusCode) + " " + statusMessage + "\r\n";
@@ -41,7 +41,7 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
     return response;
 }
 
-// 验证用户名是否合法（允许：字母、数字、下划线、UTF-8中文）
+// Validate username (allowed: letters, numbers, underscore, UTF-8 Chinese)
 bool isValidUsername(const std::string& username) {
     if (username.empty()) {
         return false;
@@ -53,20 +53,20 @@ bool isValidUsername(const std::string& username) {
         unsigned char c = static_cast<unsigned char>(username[i]);
 
         if (c <= 0x7F) {
-            // 1. 单字节：ASCII 字符
+            // 1. Single byte: ASCII character
             if (!isalnum(c) && c != '_') {
-                return false; // 只允许字母、数字、下划线
+                return false; // Only letters, numbers, and underscore are allowed
             }
             i++;
             charCount++;
         } else if ((c & 0xE0) == 0xE0) {
-            // 2. 三字节：UTF-8 中文 (基本覆盖中日韩统一表意文字)
-            if (i + 2 >= username.length()) return false; // 不完整的UTF-8序列
+            // 2. Three bytes: UTF-8 Chinese (covers CJK unified ideographs)
+            if (i + 2 >= username.length()) return false; // Incomplete UTF-8 sequence
             
             unsigned char c2 = static_cast<unsigned char>(username[i+1]);
             unsigned char c3 = static_cast<unsigned char>(username[i+2]);
             
-            // 检查后续字节是否符合 UTF-8 规范 (10xxxxxx)
+            // Check if subsequent bytes follow UTF-8 specification (10xxxxxx)
             if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80) {
                 return false;
             }
@@ -74,11 +74,11 @@ bool isValidUsername(const std::string& username) {
             i += 3;
             charCount++;
         } else {
-            // 3. 其他字节（双字节、四字节 emoji 等）：不允许
+            // 3. Other bytes (two-byte, four-byte emoji, etc.): not allowed
             return false;
         }
 
-        // 限制最多 15 个字符（中文或英文都算一个字符）
+        // Limit to maximum 15 characters (Chinese or English both count as one character)
         if (charCount > 15) {
             return false;
         }
@@ -86,7 +86,7 @@ bool isValidUsername(const std::string& username) {
     return true;
 }
 
-// URL解码函数
+// URL decode function
 std::string urlDecode(const std::string& str) {
     std::string decoded;
     for (size_t i = 0; i < str.length(); i++) {
@@ -103,29 +103,30 @@ std::string urlDecode(const std::string& str) {
     return decoded;
 }
 
-// URL编码函数
+// URL encode function
 std::string urlEncode(const std::string& str) {
     std::string encoded;
-    encoded.reserve(str.length() * 3); // 预分配空间，最坏情况下每个字符需要3个字符空间
+    encoded.reserve(str.length() * 3); // Preallocate space, worst case each character needs 3 characters space
     for (char c : str) {
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+        unsigned char uc = static_cast<unsigned char>(c);
+        if (isalnum(uc) || c == '-' || c == '_' || c == '.' || c == '~') {
             encoded += c;
         } else {
             char hex[3];
-            sprintf(hex, "%02X", (unsigned char)c);
+            sprintf(hex, "%02X", uc);
             encoded += "%" + std::string(hex);
         }
     }
     return encoded;
 }
 
-// HTML实体解码函数
+// HTML entity decode function
 std::string htmlEntityDecode(const std::string& str) {
-    // 预分配空间，减少内存重新分配
+    // Preallocate space to reduce memory reallocation
     std::string decoded;
     decoded.reserve(str.length());
     
-    // 命名实体映射表，提高查找效率
+    // Named entity mapping table for efficient lookup
     static const std::unordered_map<std::string, std::string> entityMap = {
         {"lt", "<"},
         {"gt", ">"},
@@ -133,43 +134,43 @@ std::string htmlEntityDecode(const std::string& str) {
         {"quot", "\""},
         {"#39", "'"},
         {"nbsp", " "},
-        {"copy", "©"},
-        {"reg", "®"},
-        {"trade", "™"},
-        {"cent", "¢"},
-        {"pound", "£"},
-        {"yen", "¥"},
-        {"euro", "€"}
+        {"copy", "\xc2\xa9"}, // ©
+        {"reg", "\xc2\xae"},  // ®
+        {"trade", "\xe2\x84\xa2"}, // ™
+        {"cent", "\xc2\xa2"}, // ¢
+        {"pound", "\xc2\xa3"}, // £
+        {"yen", "\xc2\xa5"},  // ¥
+        {"euro", "\xe2\x82\xac"} // €
     };
     
     size_t i = 0;
     while (i < str.length()) {
         if (str[i] == '&' && i + 1 < str.length()) {
-            // 检查是否是HTML实体
+            // Check if it's an HTML entity
             if (str[i+1] == '#') {
-                // 数字实体，如 &#1234;
+                // Numeric entity, like &#1234;
                 size_t end = str.find(';', i);
                 if (end != std::string::npos) {
                     std::string numStr = str.substr(i + 2, end - i - 2);
                     try {
                         int code = std::stoi(numStr);
                         if (code >= 0 && code <= 0x10FFFF) {
-                            // 处理UTF-8编码（使用lambda表达式）
+                            // Handle UTF-8 encoding (using lambda expression)
                             auto appendUtf8 = [&decoded](int code) {
                                 if (code <= 0x7F) {
-                                    // 1字节：ASCII
+                                    // 1 byte: ASCII
                                     decoded += static_cast<char>(code);
                                 } else if (code <= 0x7FF) {
-                                    // 2字节UTF-8
+                                    // 2-byte UTF-8
                                     decoded += static_cast<char>(0xC0 | (code >> 6));
                                     decoded += static_cast<char>(0x80 | (code & 0x3F));
                                 } else if (code <= 0xFFFF) {
-                                    // 3字节UTF-8
+                                    // 3-byte UTF-8
                                     decoded += static_cast<char>(0xE0 | (code >> 12));
                                     decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
                                     decoded += static_cast<char>(0x80 | (code & 0x3F));
                                 } else if (code <= 0x10FFFF) {
-                                    // 4字节UTF-8 (支持emoji等)
+                                    // 4-byte UTF-8 (supports emoji, etc.)
                                     decoded += static_cast<char>(0xF0 | (code >> 18));
                                     decoded += static_cast<char>(0x80 | ((code >> 12) & 0x3F));
                                     decoded += static_cast<char>(0x80 | ((code >> 6) & 0x3F));
@@ -185,13 +186,13 @@ std::string htmlEntityDecode(const std::string& str) {
                     }
                 }
             } else {
-                // 命名实体，如 &lt;
+                // Named entity, like &lt;
                 size_t end = str.find(';', i);
                 if (end != std::string::npos) {
                     std::string entityName = str.substr(i + 1, end - i - 1);
                     auto it = entityMap.find(entityName);
                     if (it != entityMap.end()) {
-                        // 找到匹配的实体
+                        // Found matching entity
                         decoded += it->second;
                         i = end + 1;
                         continue;
@@ -199,14 +200,14 @@ std::string htmlEntityDecode(const std::string& str) {
                 }
             }
         }
-        // 不是HTML实体，直接添加
+        // Not an HTML entity, add directly
         decoded += str[i];
         i++;
     }
     return decoded;
 }
 
-// 解析表单数据
+// Parse form data
 std::string parseFormData(const std::string& data, const std::string& key) {
     size_t pos = data.find(key + "=");
     if (pos == std::string::npos) return "";
@@ -214,11 +215,11 @@ std::string parseFormData(const std::string& data, const std::string& key) {
     size_t end = data.find("&", pos);
     if (end == std::string::npos) end = data.length();
     std::string value = data.substr(pos, end - pos);
-    // 使用统一的URL解码函数
+    // Use unified URL decode function
     return urlDecode(value);
 }
 
-// 获取内容类型
+// Get content type
 std::string getContentType(const std::string& path) {
     if (path.find(".html") != std::string::npos) return "text/html";
     if (path.find(".css") != std::string::npos) return "text/css";
@@ -226,7 +227,7 @@ std::string getContentType(const std::string& path) {
     return "text/plain";
 }
 
-// 解析URL参数
+// Parse URL parameters
 std::string parseUrlParam(const std::string& url, const std::string& key) {
     // 查找查询参数开始位置
     size_t queryPos = url.find("?");

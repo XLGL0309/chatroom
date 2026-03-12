@@ -1,45 +1,70 @@
 #include "../include/user.h"
+#include "../include/database.h"
 
 bool UserManager::registerUser(const std::string& username, const std::string& password, const std::string& ip) {
-    std::lock_guard<std::mutex> lock(userMutex);
-    auto it = userMap.find(username);
-    if (it == userMap.end()) {
-        // 用户名不存在，注册新用户
-        User user;
-        user.username = username;
-        user.password = password; // 简单存储密码，实际应用中应该加密
-        user.ip = ip;
-        userMap[username] = user;
-        return true;
-    } else {
-        // 用户名已存在，注册失败
-        return false;
+    // Check if user already exists
+    std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = '" + username + "'";
+    MYSQL_RES* result = g_databaseManager.executeQuery(checkQuery);
+    if (result) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+        if (row && atoi(row[0]) > 0) {
+            // User already exists
+            mysql_free_result(result);
+            return false;
+        }
+        mysql_free_result(result);
     }
+    
+    // Insert new user
+    std::string insertQuery = "INSERT INTO users (username, password, ip) VALUES ('" + username + "', '" + password + "', '" + ip + "')";
+    int rowsAffected = g_databaseManager.executeUpdate(insertQuery);
+    return rowsAffected > 0;
 }
 
 bool UserManager::loginUser(const std::string& username, const std::string& password, const std::string& ip) {
-    std::lock_guard<std::mutex> lock(userMutex);
-    auto it = userMap.find(username);
-    if (it != userMap.end() && it->second.password == password) {
-        // 用户名和密码匹配，更新IP并登录
-        it->second.ip = ip;
-        return true;
-    } else {
-        // 用户名或密码错误，登录失败
-        return false;
+    // Validate username and password
+    std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = '" + username + "' AND password = '" + password + "'";
+    MYSQL_RES* result = g_databaseManager.executeQuery(checkQuery);
+    if (result) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+        if (row && atoi(row[0]) > 0) {
+            // Username and password match, update IP
+            std::string updateQuery = "UPDATE users SET ip = '" + ip + "' WHERE username = '" + username + "'";
+            g_databaseManager.executeUpdate(updateQuery);
+            mysql_free_result(result);
+            return true;
+        }
+        mysql_free_result(result);
     }
+    // Invalid username or password
+    return false;
 }
 
 bool UserManager::isValidUser(const std::string& username, const std::string& ip) {
-    std::lock_guard<std::mutex> lock(userMutex);
-    auto it = userMap.find(username);
-    return (it != userMap.end() && it->second.ip == ip);
+    // Validate user exists and IP matches
+    std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = '" + username + "' AND ip = '" + ip + "'";
+    MYSQL_RES* result = g_databaseManager.executeQuery(checkQuery);
+    if (result) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+        bool isValid = row && atoi(row[0]) > 0;
+        mysql_free_result(result);
+        return isValid;
+    }
+    return false;
 }
 
 bool UserManager::userExists(const std::string& username) {
-    std::lock_guard<std::mutex> lock(userMutex);
-    return userMap.find(username) != userMap.end();
+    // Check if user exists
+    std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = '" + username + "'";
+    MYSQL_RES* result = g_databaseManager.executeQuery(checkQuery);
+    if (result) {
+        MYSQL_ROW row = mysql_fetch_row(result);
+        bool exists = row && atoi(row[0]) > 0;
+        mysql_free_result(result);
+        return exists;
+    }
+    return false;
 }
 
-// 全局用户管理器实例
+// Global user manager instance
 UserManager g_userManager;

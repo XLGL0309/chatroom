@@ -2,13 +2,21 @@
 #include <thread>
 #include <string>
 #include "include/network.h"
+#include "include/database.h"
+
+// 用于密码输入的头文件
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 void consoleInputThread() {
     std::string input;
     while (g_running) {
         std::getline(std::cin, input);
         if (input == "exit" || input == "quit" || input == "stop") {
-            std::cout << "正在关闭服务器..." << std::endl;
+            std::cout << "Shutting down server..." << std::endl;
             g_running = false;
             if (g_serverSocket != INVALID_SOCKET) {
                 closesocket(g_serverSocket);
@@ -20,13 +28,35 @@ void consoleInputThread() {
 }
 
 int main() {
-    // 设置Windows控制台输出编码为UTF-8
-    #ifdef _WIN32
-    SetConsoleOutputCP(65001);
-    #endif
+
     
     // 初始化网络
     initializeNetwork();
+    
+    // Input database password
+    std::string dbPassword;
+    std::cout << "Please enter database password: ";
+    // Hide password input
+    #ifdef _WIN32
+    // Windows platform
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode = 0;
+    GetConsoleMode(hStdin, &mode);
+    SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT));
+    std::getline(std::cin, dbPassword);
+    SetConsoleMode(hStdin, mode);
+    #else
+    // Linux/Unix platform
+    char* password = getpass("");
+    dbPassword = password;
+    #endif
+    std::cout << std::endl;
+    
+    // Initialize database connection
+    if (!g_databaseManager.initialize("localhost", "root", dbPassword, "chatroom")) {
+        std::cerr << "Database initialization failed, server cannot start" << std::endl;
+        return 1;
+    }
     
     // 创建服务器Socket
     SOCKET serverSocket = createServerSocket(8888);
@@ -72,6 +102,6 @@ int main() {
 #ifdef _WIN32
     WSACleanup();
 #endif
-    std::cout << "服务器已关闭" << std::endl;
+    std::cout << "Server closed" << std::endl;
     return 0;
 }
