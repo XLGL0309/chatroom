@@ -36,7 +36,7 @@ chatroom/
 │   └── web.cpp        # HTTP请求处理实现
 ├── main.cpp           # 主服务器入口点
 ├── CMakeLists.txt     # CMake配置
-├── run.bat            # Windows构建和运行脚本
+├── make.bat           # Windows编译脚本
 ├── init_database.sql  # 数据库初始化脚本
 └── README.md          # 此文件
 ```
@@ -45,22 +45,43 @@ chatroom/
 
 ### 1. 数据库设置
 
-1. 创建一个名为 `chatroom` 的MySQL数据库
-2. 运行初始化脚本创建必要的表：
+**数据库是本项目的核心组件**，用于存储用户信息和消息数据。
+
+1. **创建数据库**：
+   ```bash
+   mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS chatroom CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   ```
+
+2. **运行初始化脚本**：
    ```bash
    mysql -u root -p chatroom < init_database.sql
    ```
+
+3. **数据库结构**：
+   - **users表**：存储用户信息，包含id、username、password、ip、created_at、updated_at字段
+   - **messages表**：存储消息数据，包含id、from_user、to_user、content、timestamp字段
+   - **外键约束**：messages表通过from_user和to_user字段与users表建立外键关系，确保数据完整性
+   - **索引**：为messages表的to_user字段创建索引，提高查询性能
+
+4. **自动清理机制**：
+   - 数据库中创建了定时事件，每小时自动清理24小时前的过期消息
+   - 确保数据库不会因消息积累而变得过大
+
+5. **字符集设置**：
+   - 使用utf8mb4字符集，支持完整的中文和emoji表情
+   - 确保中文字符能够正确存储和显示
 
 ### 2. 构建和运行
 
 #### Windows系统：
 
-1. 双击 `run.bat` 构建并启动服务器
+1. 在根目录运行 `.ake.bat` 编译项目
 2. 脚本会自动：
    - 清理之前的构建文件
    - 运行CMake生成构建文件
    - 编译项目
-   - 启动服务器
+3. 编译完成后，可执行文件 `chatroom.exe` 会生成在根目录
+4. 运行服务器：`chatroom.exe`
 
 #### Linux系统：
 
@@ -74,16 +95,25 @@ chatroom/
 
 ### 3. MySQL连接配置
 
-默认情况下，服务器连接MySQL的参数：
-- 主机：localhost
-- 用户：root
-- 数据库：chatroom
-- 密码：（启动时提示输入）
+**数据库连接是服务器启动的关键步骤**，默认配置如下：
+
+- **主机**：localhost
+- **用户**：root
+- **数据库**：chatroom
+- **密码**：启动时会安全提示输入，不会在终端显示
+- **字符集**：utf8mb4，确保中文支持
+
+**注意**：如果您的MySQL配置不同，请修改 `database.cpp` 文件中的连接参数。
 
 ## 使用说明
 
-1. **启动服务器**
-   - 运行 `run.bat` (Windows) 或 `./chatroom` (Linux)
+1. **编译项目**
+   - Windows: 在根目录运行 `.ake.bat`
+   - Linux: 在项目目录运行 `cmake . && cmake --build .`
+
+2. **启动服务器**
+   - Windows: 运行 `.hatroom.exe`
+   - Linux: 运行 `./chatroom`
    - 输入MySQL密码
 
 2. **访问聊天界面**
@@ -199,7 +229,7 @@ chatroom/
 │   └── web.cpp        # HTTP request handling implementation
 ├── main.cpp           # Main server entry point
 ├── CMakeLists.txt     # CMake configuration
-├── run.bat            # Windows build and run script
+├── make.bat           # Windows compile script
 ├── init_database.sql  # Database initialization script
 └── README.md          # This file
 ```
@@ -208,22 +238,45 @@ chatroom/
 
 ### 1. Database Setup
 
-1. Create a MySQL database named `chatroom`
-2. Run the initialization script to create necessary tables:
+### 1. Database Setup
+
+**Database is a core component of this project** for storing user information and message data.
+
+1. **Create Database**:
+   ```bash
+   mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS chatroom CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   ```
+
+2. **Run Initialization Script**:
    ```bash
    mysql -u root -p chatroom < init_database.sql
    ```
+
+3. **Database Structure**:
+   - **users table**: Stores user information, including id, username, password, ip, created_at, updated_at fields
+   - **messages table**: Stores message data, including id, from_user, to_user, content, timestamp fields
+   - **Foreign Key Constraints**: messages table establishes foreign key relationships with users table through from_user and to_user fields to ensure data integrity
+   - **Indexing**: Creates index for to_user field in messages table to improve query performance
+
+4. **Automatic Cleanup Mechanism**:
+   - Creates scheduled event in database that automatically cleans up messages older than 24 hours every hour
+   - Ensures database doesn't grow too large due to message accumulation
+
+5. **Character Set**:
+   - Uses utf8mb4 character set to support full Chinese characters and emoji
+   - Ensures Chinese characters can be stored and displayed correctly
 
 ### 2. Build and Run
 
 #### On Windows:
 
-1. Double-click `run.bat` to build and start the server
+1. Run `make.bat` in the root directory to compile the project
 2. The script will automatically:
    - Clean previous build files
    - Run CMake to generate build files
    - Compile the project
-   - Start the server
+3. After compilation, the executable `chatroom.exe` will be generated in the root directory
+4. Start the server: `chatroom.exe`
 
 #### On Linux:
 
@@ -237,16 +290,25 @@ chatroom/
 
 ### 3. Configure MySQL Connection
 
-By default, the server connects to MySQL with:
-- Host: localhost
-- User: root
-- Database: chatroom
-- Password: (prompted at startup)
+**Database connection is a critical step for server startup** with the following default configuration:
+
+- **Host**: localhost
+- **User**: root
+- **Database**: chatroom
+- **Password**: Prompted securely at startup, not displayed in terminal
+- **Character Set**: utf8mb4 for Chinese support
+
+**Note**: If your MySQL configuration is different, please modify the connection parameters in `database.cpp` file.
 
 ## Usage
 
-1. **Start the Server**
-   - Run `run.bat` (Windows) or `./chatroom` (Linux)
+1. **Compile the Project**
+   - Windows: Run `.ake.bat` in the root directory
+   - Linux: Run `cmake . && cmake --build .` in the project directory
+
+2. **Start the Server**
+   - Windows: Run `.hatroom.exe`
+   - Linux: Run `./chatroom`
    - Enter your MySQL password when prompted
 
 2. **Access the Chat Interface**
