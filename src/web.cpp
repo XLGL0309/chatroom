@@ -20,8 +20,8 @@ std::string readFile(const std::string& filename) {
 }
 
 // HTML页面
-const std::string htmlLogin = readFile("../../html/login.html");
-const std::string htmlChat = readFile("../../html/chat.html");
+const std::string htmlLogin = readFile("./html/login.html");
+const std::string htmlChat = readFile("./html/chat.html");
 
 // 生成消息JSON的辅助函数
 std::string generateMessagesJson(const std::vector<Message>& messages) {
@@ -79,17 +79,13 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
         path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
     }
     
-    // 只记录关键请求的日志
-    if (path == "/login" || path == "/send" || path == "/view") {
-        std::cout << "Request: " << path << " from " << clientIP << std::endl;
-    }
     
     std::string response;
 
     if (method == "GET") {
         if (path == "/") {
             // 显示登录页面
-            std::string filePath = "../../html/login.html";
+            std::string filePath = "./html/login.html";
             std::string content = readFile(filePath);
             std::string contentType = getContentType(filePath);
             response = createHttpResponse(200, "OK", contentType, content);

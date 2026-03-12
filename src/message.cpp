@@ -31,7 +31,6 @@ void MessageManager::addMessage(const std::string& from, const std::string& to, 
     // Insert new message
     std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES ('" + from + "', '" + to + "', '" + content + "')";
     g_databaseManager.executeUpdate(insertQuery);
-    std::cout << "Message sent: " << from << " -> " << to << ": " << content << std::endl;
 }
 
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {

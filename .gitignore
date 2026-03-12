@@ -11,6 +11,3 @@
 *.pdb
 *.ilk
 *.exp
-
-# 忽略 VS Code 配置目录
-.vscode/

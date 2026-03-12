@@ -13,6 +13,11 @@ endif()
 
 # 设置可执行文件输出目录为根目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
+# 对于 MSVC，确保 Debug 和 Release 版本都输出到根目录
+if(MSVC)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR})
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR})
+endif()
 
 include_directories(include)
 
