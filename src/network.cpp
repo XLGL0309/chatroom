@@ -69,5 +69,5 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
     std::string response = handleHttpRequest(request, clientIP);
 
     int bytesSent = send(clientSocket, response.c_str(), response.length(), 0);
-    closesocket(clientSocket);
+    // 不再在这里关闭 socket，由 main 循环统一管理关闭
 }

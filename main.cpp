@@ -141,7 +141,8 @@ int main() {
                 auto it = std::find_if(clientConnections.begin(), clientConnections.end(),
                     [socketToRemove](const ClientConnection& conn) { return conn.socket == socketToRemove; });
                 if (it != clientConnections.end()) {
-                    // 不需要再次关闭，因为 handleClientConnection 已经关闭
+                    // 关闭客户端 socket
+                    closesocket(socketToRemove);
                     clientConnections.erase(it);
                     std::cout << "Client disconnected" << std::endl;
                 }
