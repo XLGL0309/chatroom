@@ -21,25 +21,38 @@
     <div class="container">
         <h1>Chat Room</h1>
         
-        <!-- 登录表单 -->
+        <!-- 登录和注册表单 -->
         <div class="form-section">
-            <h2>登录</h2>
+            <h2>登录/注册</h2>
             <form action="/login" method="post">
                 <input type="text" name="username" placeholder="请输入用户名" required>
-                <input type="password" name="password" placeholder="请输入密码" required>
-                <button type="submit">登录</button>
+                <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="switchToRegister()" style="flex: 1; background: #2196F3;">注册</button>
+                    <button type="submit" style="flex: 1;">登录</button>
+                </div>
+            </form>
+            <form id="registerForm" action="/register" method="post" style="display: none; margin-top: 20px;">
+                <input type="text" name="username" placeholder="请输入用户名" required>
+                <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="switchToLogin()" style="flex: 1; background: #2196F3;">返回登录</button>
+                    <button type="submit" style="flex: 1;">注册并登录</button>
+                </div>
             </form>
         </div>
         
-        <!-- 注册表单 -->
-        <div class="form-section">
-            <h2>注册</h2>
-            <form action="/register" method="post">
-                <input type="text" name="username" placeholder="请输入用户名" required>
-                <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
-                <button type="submit">注册并登录</button>
-            </form>
-        </div>
+        <script>
+            function switchToRegister() {
+                document.querySelector('form[action="/login"]').style.display = 'none';
+                document.getElementById('registerForm').style.display = 'block';
+            }
+            
+            function switchToLogin() {
+                document.getElementById('registerForm').style.display = 'none';
+                document.querySelector('form[action="/login"]').style.display = 'block';
+            }
+        </script>
     </div>
 </body>
 </html>
