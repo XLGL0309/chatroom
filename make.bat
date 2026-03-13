@@ -16,4 +16,4 @@ rem 构建完成后再次清理，只保留可执行文件
 echo Cleaning up after build...
 call clean.bat
 
-echo Build completed successfully! Only chatroom.exe and chatroom.pdb remain.
+echo Build completed successfully!
