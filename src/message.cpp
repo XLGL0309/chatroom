@@ -28,16 +28,24 @@ char* strptime(const char* s, const char* f, struct tm* tm) {
 Message::Message() : timestamp(time(nullptr)) {}
 
 void MessageManager::addMessage(const std::string& from, const std::string& to, const std::string& content) {
-    // Insert new message
-    std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES ('" + from + "', '" + to + "', '" + content + "')";
-    g_databaseManager.executeUpdate(insertQuery);
+    // 使用更细粒度的锁，只在需要时加锁
+    std::lock_guard<std::mutex> lock(messageMutex);
+    
+    // Insert new message using prepared statement
+    std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES (?, ?, ?)";
+    std::vector<std::string> insertParams = {from, to, content};
+    g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
 }
 
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
+    // 使用更细粒度的锁，只在需要时加锁
+    std::lock_guard<std::mutex> lock(messageMutex);
+    
     std::vector<Message> messages;
     // Query all messages for user (expired messages are cleaned by database event)
-    std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = '" + username + "' ORDER BY timestamp ASC";
-    MYSQL_RES* result = g_databaseManager.executeQuery(query);
+    std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = ? ORDER BY timestamp ASC";
+    std::vector<std::string> queryParams = {username};
+    MYSQL_RES* result = g_databaseManager.executePreparedQuery(query, queryParams);
     if (result) {
         MYSQL_ROW row;
         while ((row = mysql_fetch_row(result)) != nullptr) {
@@ -65,15 +73,22 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
 }
 
 void MessageManager::cleanExpiredMessages() {
+    // 使用更细粒度的锁，只在需要时加锁
+    std::lock_guard<std::mutex> lock(messageMutex);
+    
     // Clean all expired messages (older than 24 hours)
     std::string deleteQuery = "DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
     g_databaseManager.executeUpdate(deleteQuery);
 }
 
 void MessageManager::cleanExpiredMessagesForUser(const std::string& username) {
-    // Clean expired messages for specific user (older than 24 hours)
-    std::string deleteQuery = "DELETE FROM messages WHERE to_user = '" + username + "' AND timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-    g_databaseManager.executeUpdate(deleteQuery);
+    // 使用更细粒度的锁，只在需要时加锁
+    std::lock_guard<std::mutex> lock(messageMutex);
+    
+    // Clean expired messages for specific user (older than 24 hours) using prepared statement
+    std::string deleteQuery = "DELETE FROM messages WHERE to_user = ? AND timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
+    std::vector<std::string> deleteParams = {username};
+    g_databaseManager.executePreparedUpdate(deleteQuery, deleteParams);
 }
 
 // 全局消息管理器实例

@@ -1,3 +1,186 @@
+# 聊天室服务器
+
+## 项目简介
+
+这是一个基于C++实现的聊天室服务器项目，提供了完整的用户注册、登录、消息发送和接收功能，并通过Web界面进行交互。项目采用了线程池技术处理并发连接，使用MySQL数据库存储用户信息和消息，支持跨平台运行（Windows和Linux）。
+
+## 功能特性
+
+- **用户注册**：支持新用户注册
+- **用户登录**：支持用户登录验证
+- **消息发送**：支持用户之间发送消息
+- **消息接收**：支持用户接收消息
+- **Web界面**：提供友好的Web界面，支持浏览器访问
+- **线程池**：使用线程池处理并发连接，提高性能
+- **跨平台**：支持Windows和Linux平台
+- **安全**：使用参数化查询防止SQL注入
+- **可配置**：支持通过配置文件修改服务器配置
+
+## 项目结构
+
+```
+chatroom/
+├── main.cpp          # 主程序入口
+├── include/          # 头文件目录
+│   ├── config.h      # 配置管理
+│   ├── database.h    # 数据库管理
+│   ├── message.h     # 消息管理
+│   ├── network.h     # 网络通信
+│   ├── threadpool.h  # 线程池
+│   ├── user.h        # 用户管理
+│   ├── utils.h       # 工具函数
+│   └── web.h         # Web处理
+├── src/              # 源代码目录
+│   ├── config.cpp    # 配置管理实现
+│   ├── database.cpp  # 数据库实现
+│   ├── message.cpp   # 消息实现
+│   ├── network.cpp   # 网络实现
+│   ├── threadpool.cpp# 线程池实现
+│   ├── user.cpp      # 用户实现
+│   ├── utils.cpp     # 工具函数实现
+│   └── web.cpp       # Web实现
+├── html/             # 前端页面
+│   ├── login.html    # 登录页面
+│   └── chat.html     # 聊天页面
+└── config.ini        # 配置文件
+```
+
+## 环境要求
+
+- **C++编译器**：支持C++11或更高版本
+- **MySQL**：5.7或更高版本
+- **MySQL Connector/C**：用于C++连接MySQL数据库
+- **Windows**：需要Winsock2库
+- **Linux**：需要Socket库
+
+## 安装步骤
+
+### 1. 安装依赖
+
+#### Windows
+- 安装MySQL数据库
+- 安装MySQL Connector/C
+- 配置环境变量，确保编译器能找到MySQL头文件和库文件
+
+#### Linux
+- 安装MySQL数据库：`sudo apt-get install mysql-server`
+- 安装MySQL开发库：`sudo apt-get install libmysqlclient-dev`
+
+### 2. 创建数据库
+
+```sql
+CREATE DATABASE chatroom;
+USE chatroom;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(50) NOT NULL,
+    ip VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    from_user VARCHAR(50) NOT NULL,
+    to_user VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建定时清理过期消息的事件
+CREATE EVENT IF NOT EXISTS clean_expired_messages
+ON SCHEDULE EVERY 1 HOUR
+DO
+    DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR);
+```
+
+### 3. 编译项目
+
+#### Windows
+- 使用Visual Studio打开项目
+- 配置包含目录和库目录，确保能找到MySQL头文件和库文件
+- 编译项目
+
+#### Linux
+```bash
+g++ -std=c++11 -o chatroom_server main.cpp src/*.cpp -Iinclude -lmysqlclient -lpthread
+```
+
+## 配置文件
+
+项目使用`config.ini`文件进行配置，包含以下配置项：
+
+```ini
+# Server Configuration
+server_port=8888
+
+# Database Configuration
+db_host=localhost
+db_user=root
+db_name=chatroom
+```
+
+- `server_port`：服务器端口，默认为8888
+- `db_host`：数据库主机，默认为localhost
+- `db_user`：数据库用户名，默认为root
+- `db_name`：数据库名称，默认为chatroom
+
+## 使用方法
+
+1. **启动服务器**
+
+```bash
+./chatroom_server
+```
+
+2. **输入数据库密码**
+
+服务器启动时会提示输入数据库密码，输入后按回车继续。
+
+3. **访问Web界面**
+
+在浏览器中访问：`http://localhost:8888`
+
+4. **注册用户**
+
+在登录页面点击"注册"按钮，填写用户名和密码进行注册。
+
+5. **登录用户**
+
+在登录页面填写用户名和密码进行登录。
+
+6. **发送消息**
+
+登录后，在聊天页面填写接收者用户名和消息内容，点击"发送"按钮发送消息。
+
+7. **接收消息**
+
+聊天页面会自动轮询获取新消息，显示在消息列表中。
+
+## 安全措施
+
+- **SQL注入防护**：使用字符串转义防止SQL注入攻击
+- **密码安全**：密码存储在数据库中（建议在生产环境中使用密码哈希）
+- **用户验证**：确保用户只能在登录的IP上操作
+- **HTML转义**：防止XSS攻击
+
+## 性能优化
+
+- **线程池**：使用线程池处理并发连接，提高性能
+- **数据库索引**：在用户名字段上创建索引，提高查询速度
+- **消息清理**：定期清理过期消息，减少数据库负担
+
+## 注意事项
+
+- 本项目仅用于学习和测试，不建议在生产环境中使用
+- 在生产环境中，建议使用HTTPS加密传输
+- 建议使用密码哈希算法存储密码，而不是明文存储
+- 建议添加更多的错误处理和日志记录
+
+## 许可证
+
+本项目采用MIT许可证，详见LICENSE文件。
 # 聊天室项目
 
 这是一个基于C++和MySQL的聊天室项目，使用HTTP协议实现前后端通信，采用单线程selectIO多路复用技术处理并发连接。

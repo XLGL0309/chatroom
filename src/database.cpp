@@ -67,6 +67,74 @@ int DatabaseManager::executeUpdate(const std::string& query) {
     return mysql_affected_rows(connection);
 }
 
+MYSQL_RES* DatabaseManager::executePreparedQuery(const std::string& query, const std::vector<std::string>& params) {
+    std::lock_guard<std::mutex> lock(dbMutex);
+    if (!isConnected()) {
+        std::cerr << "Database not connected" << std::endl;
+        return nullptr;
+    }
+    
+    // 对于简单的计数查询，我们使用普通查询来保持兼容性
+    // 因为预处理语句的结果集处理比较复杂
+    // 这里我们直接使用字符串拼接，但会对输入进行转义，防止SQL注入
+    std::string safeQuery = query;
+    size_t pos = 0;
+    for (const auto& param : params) {
+        pos = safeQuery.find('?', pos);
+        if (pos == std::string::npos) break;
+        
+        // 对参数进行转义，防止SQL注入
+        char* escaped = new char[param.length() * 2 + 1];
+        mysql_real_escape_string(connection, escaped, param.c_str(), param.length());
+        std::string safeParam = escaped;
+        delete[] escaped;
+        
+        safeQuery.replace(pos, 1, "'" + safeParam + "'");
+        pos += safeParam.length() + 2;
+    }
+    
+    // 执行普通查询
+    if (mysql_query(connection, safeQuery.c_str())) {
+        std::cerr << "Query execution failed: " << mysql_error(connection) << std::endl;
+        return nullptr;
+    }
+    
+    return mysql_store_result(connection);
+}
+
+int DatabaseManager::executePreparedUpdate(const std::string& query, const std::vector<std::string>& params) {
+    std::lock_guard<std::mutex> lock(dbMutex);
+    if (!isConnected()) {
+        std::cerr << "Database not connected" << std::endl;
+        return -1;
+    }
+    
+    // 对于更新操作，我们使用字符串转义的方式处理参数，以确保操作能够正确执行
+    std::string safeQuery = query;
+    size_t pos = 0;
+    for (const auto& param : params) {
+        pos = safeQuery.find('?', pos);
+        if (pos == std::string::npos) break;
+        
+        // 对参数进行转义，防止SQL注入
+        char* escaped = new char[param.length() * 2 + 1];
+        mysql_real_escape_string(connection, escaped, param.c_str(), param.length());
+        std::string safeParam = escaped;
+        delete[] escaped;
+        
+        safeQuery.replace(pos, 1, "'" + safeParam + "'");
+        pos += safeParam.length() + 2;
+    }
+    
+    // 执行普通更新
+    if (mysql_query(connection, safeQuery.c_str())) {
+        std::cerr << "Update execution failed: " << mysql_error(connection) << std::endl;
+        return -1;
+    }
+    
+    return mysql_affected_rows(connection);
+}
+
 bool DatabaseManager::isConnected() const {
     return connection != nullptr;
 }

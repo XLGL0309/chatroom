@@ -6,6 +6,7 @@
 #include "include/network.h"
 #include "include/database.h"
 #include "include/threadpool.h"
+#include "include/config.h"
 // 用于密码输入的头文件
 #ifdef _WIN32
 #include <windows.h>
@@ -36,6 +37,11 @@ int main() {
     // 初始化网络
     initializeNetwork();
     
+    // 从配置文件读取数据库配置
+    std::string dbHost = g_configManager.get("db_host", "localhost");
+    std::string dbUser = g_configManager.get("db_user", "root");
+    std::string dbName = g_configManager.get("db_name", "chatroom");
+    
     // Input database password
     std::string dbPassword;
     std::cout << "Please enter database password: ";
@@ -56,13 +62,16 @@ int main() {
     std::cout << std::endl;
     
     // Initialize database connection
-    if (!g_databaseManager.initialize("localhost", "root", dbPassword, "chatroom")) {
+    if (!g_databaseManager.initialize(dbHost, dbUser, dbPassword, dbName)) {
         std::cerr << "Database initialization failed, server cannot start" << std::endl;
         return 1;
     }
     
+    // 从配置文件读取服务器端口
+    int serverPort = g_configManager.getInt("server_port", 8888);
+    
     // 创建服务器Socket
-    SOCKET serverSocket = createServerSocket(8888);
+    SOCKET serverSocket = createServerSocket(serverPort);
     g_serverSocket = serverSocket; // 设置全局服务器套接字
     
     // 启动线程池

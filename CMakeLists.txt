@@ -42,6 +42,7 @@ add_executable(chatroom
     src/utils.cpp
     src/database.cpp
     src/threadpool.cpp
+    src/config.cpp
 )
 
 # 跨平台链接socket/线程库

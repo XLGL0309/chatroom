@@ -4,6 +4,7 @@
 #include <string>
 #include <mutex>
 #include <mysql.h>
+#include <vector>
 
 class DatabaseManager {
 private:
@@ -22,6 +23,12 @@ public:
     
     // 执行SQL更新（INSERT、UPDATE、DELETE）
     int executeUpdate(const std::string& query);
+    
+    // 执行参数化查询
+    MYSQL_RES* executePreparedQuery(const std::string& query, const std::vector<std::string>& params);
+    
+    // 执行参数化更新
+    int executePreparedUpdate(const std::string& query, const std::vector<std::string>& params);
     
     // 检查数据库连接是否有效
     bool isConnected() const;
