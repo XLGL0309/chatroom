@@ -10,7 +10,8 @@
 - 跨平台支持（Windows和Linux）
 - 数据库存储消息和用户信息
 - 消息24小时自动过期清理
-- 单线程selectIO多路复用处理并发连接
+- 多线程并发处理（线程池技术）
+- 智能线程数配置（根据CPU核心数自动调整）
 - 支持中文用户名和消息内容
 
 ## 技术栈
@@ -18,16 +19,25 @@
 - **后端**：C++
 - **数据库**：MySQL
 - **前端**：HTML5, CSS3, JavaScript
-- **网络**：Socket编程, HTTP协议, selectIO多路复用
+- **网络**：Socket编程, HTTP协议
+- **并发处理**：线程池（生产者-消费者模式）
 - **实时通信**：短轮询（Short Polling）
 
 ## 技术实现细节
 
 ### 1. 网络模型
 
-- **单线程selectIO多路复用**：使用`select`函数实现I/O多路复用，在单个线程中处理多个客户端连接，提高服务器的并发处理能力
+- **多线程并发处理**：使用线程池技术，充分利用多核CPU性能
+- **生产者-消费者模式**：主线程负责接受新连接，工作线程负责处理请求
 - **跨平台Socket**：通过条件编译实现Windows和Linux平台的Socket兼容
 - **HTTP服务器**：自定义实现简单的HTTP服务器，支持GET和POST请求
+
+### 2. 线程池实现
+
+- **智能线程数配置**：根据CPU核心数自动调整线程数（核心数×2）
+- **任务队列**：使用线程安全的队列存储客户端连接
+- **条件变量**：实现工作线程的高效唤醒机制
+- **线程安全**：使用互斥锁和原子变量确保线程安全
 
 ### 2. 消息更新机制
 
@@ -58,6 +68,7 @@ chatroom/
 │   ├── database.h        # 数据库管理
 │   ├── message.h         # 消息管理
 │   ├── network.h         # 网络管理
+│   ├── threadpool.h      # 线程池管理
 │   ├── user.h            # 用户管理
 │   ├── utils.h           # 工具函数
 │   └── web.h             # Web请求处理
@@ -65,6 +76,7 @@ chatroom/
 │   ├── database.cpp      # 数据库实现
 │   ├── message.cpp       # 消息实现
 │   ├── network.cpp       # 网络实现
+│   ├── threadpool.cpp    # 线程池实现
 │   ├── user.cpp          # 用户实现
 │   ├── utils.cpp         # 工具函数实现
 │   └── web.cpp           # Web请求处理实现
@@ -154,36 +166,36 @@ chatroom.exe
 
 ### 1. 主循环（main.cpp）
 
-使用`select`函数实现I/O多路复用，处理服务器套接字和客户端套接字的事件：
+主线程负责接受新连接，并将连接添加到线程池：
 
 ```cpp
-// 主循环
+// 主循环 - 只处理新连接
 while (g_running) {
     fd_set readSet;
     FD_ZERO(&readSet);
     FD_SET(serverSocket, &readSet);
     
-    // 将所有客户端套接字添加到readSet
-    int maxSocket = serverSocket;
-    {
-        std::lock_guard<std::mutex> lock(clientConnectionsMutex);
-        for (const ClientConnection& conn : clientConnections) {
-            FD_SET(conn.socket, &readSet);
-            if (conn.socket > maxSocket) {
-                maxSocket = conn.socket;
-            }
-        }
-    }
-    
     timeval timeout;
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     
-    // 调用select函数
-    int result = select(maxSocket + 1, &readSet, nullptr, nullptr, &timeout);
+    int result = select(serverSocket + 1, &readSet, nullptr, nullptr, &timeout);
     
-    // 处理新连接和客户端请求
-    // ...
+    if (result == 0) continue;
+    
+    // 检查服务器套接字是否有新连接
+    if (FD_ISSET(serverSocket, &readSet)) {
+        sockaddr_in clientAddr;
+        int clientAddrSize = sizeof(clientAddr);
+        SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+        if (clientSocket != INVALID_SOCKET) {
+            std::string clientIP = inet_ntoa(clientAddr.sin_addr);
+            std::cout << "New connection from " << clientIP << std::endl;
+            
+            // 将新客户端添加到线程池
+            g_threadPool.addTask(clientSocket, clientIP);
+        }
+    }
 }
 ```
 
@@ -219,6 +231,48 @@ function shortPollMessages() {
     
     // 发送请求
     xhr.send();
+}
+```
+
+### 2. 线程池实现（threadpool.cpp）
+
+使用生产者-消费者模式实现线程池：
+
+```cpp
+// 工作线程循环
+void ThreadPool::workerLoop() {
+    while (m_running) {
+        Task task;
+        {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            
+            // 等待，直到队列不为空 或 停止运行
+            m_cv.wait(lock, [this] {  
+                return !m_taskQueue.empty() || !m_running;  
+            });
+            
+            if (!m_running && m_taskQueue.empty()) return;
+            
+            // 取出任务
+            task = m_taskQueue.front();
+            m_taskQueue.pop();
+        } // 锁在这里释放，处理任务时不持有锁
+        
+        // 处理任务（锁外执行）
+        std::cout << "Thread handling connection from " << task.ip << std::endl;
+        handleClientConnection(task.socket, task.ip);
+        closesocket(task.socket);
+        std::cout << "Thread finished connection from " << task.ip << std::endl;
+    }
+}
+
+// 添加任务到线程池
+void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
+    {
+        std::lock_guard<std::mutex> lock(m_queueMutex);
+        m_taskQueue.push({socket, ip});
+    }
+    m_cv.notify_one(); // 唤醒一个工作线程
 }
 ```
 
