@@ -54,8 +54,8 @@
         // 当前消息数量
         let currentMessageCount = 0;
         
-        // 长轮询函数
-        function longPollMessages() {
+        // 短轮询函数
+        function shortPollMessages() {
             // 兼容所有浏览器的XMLHttpRequest创建
             let xhr;
             if (window.XMLHttpRequest) {
@@ -68,9 +68,6 @@
             
             // 发送GET请求到API接口，带上当前消息数量
             xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username) + '&lastCount=' + currentMessageCount, true);
-            
-            // 设置超时（长轮询超时时间要大于服务器端的等待时间）
-            xhr.timeout = 35000; // 35秒超时
             
             // 处理响应
             xhr.onload = function() {
@@ -87,22 +84,15 @@
                     console.error('请求失败，状态码:', xhr.status);
                 }
                 
-                // 无论成功失败，都继续下一次轮询
-                longPollMessages();
+                // 无论成功失败，等待1秒后继续下一次轮询
+                setTimeout(shortPollMessages, 1000);
             };
             
             // 处理错误
             xhr.onerror = function() {
                 console.error('网络错误');
-                // 错误后继续轮询
-                longPollMessages();
-            };
-            
-            // 处理超时
-            xhr.ontimeout = function() {
-                console.error('请求超时');
-                // 超时后继续轮询
-                longPollMessages();
+                // 错误后等待1秒继续轮询
+                setTimeout(shortPollMessages, 1000);
             };
             
             // 发送请求
@@ -126,19 +116,19 @@
             }
         }
         
-        // 开始长轮询
-        function startLongPolling() {
+        // 开始短轮询
+        function startShortPolling() {
             // 立即执行一次
-            longPollMessages();
+            shortPollMessages();
         }
         
         // 页面加载完成后执行
         if (window.addEventListener) {
-            window.addEventListener('load', startLongPolling);
+            window.addEventListener('load', startShortPolling);
         } else if (window.attachEvent) {
-            window.attachEvent('onload', startLongPolling);
+            window.attachEvent('onload', startShortPolling);
         } else {
-            window.onload = startLongPolling;
+            window.onload = startShortPolling;
         }
     </script>
 </body>

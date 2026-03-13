@@ -112,48 +112,18 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                 }
             }
             
-            // 长轮询等待时间（秒）
-            const int maxWaitTime = 30;
-            time_t startTime = time(nullptr);
-            
-            // 等待新消息
-            while (true) {
-                auto messages = g_messageManager.getMessagesForUser(username);
-                if (messages.size() > lastCount) {
-                    // 有新消息，立即返回
-                    std::string json = generateMessagesJson(messages);
-                    // 确保返回正确的Content-Type和CORS头
-                    std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
-                    responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
-                    responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
-                    responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
-                    responseWithHeaders += "\r\n";
-                    responseWithHeaders += json;
-                    response = responseWithHeaders;
-                    break;
-                }
-                
-                // 检查是否超时
-                time_t currentTime = time(nullptr);
-                if (currentTime - startTime >= maxWaitTime) {
-                    break;
-                }
-                
-                // 没有新消息，等待1秒后再次检查
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            }
-            
-            // 超时后返回空消息
-            if (response.empty()) {
-                std::string json = "{\"messages\": []}";
-                std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
-                responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
-                responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
-                responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
-                responseWithHeaders += "\r\n";
-                responseWithHeaders += json;
-                response = responseWithHeaders;
-            }
+            // 立即检查是否有新消息，不等待
+            auto messages = g_messageManager.getMessagesForUser(username);
+            // 无论是否有新消息，都返回所有消息
+            std::string json = generateMessagesJson(messages);
+            // 确保返回正确的Content-Type和CORS头
+            std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
+            responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
+            responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
+            responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
+            responseWithHeaders += "\r\n";
+            responseWithHeaders += json;
+            response = responseWithHeaders;
         } else {
             response = createHttpResponse(404, "Not Found", "text/plain", "Page not found");
         }
