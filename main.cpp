@@ -153,7 +153,7 @@ int main() {
     // 关闭所有客户端连接
     {   // 加锁保护客户端连接列表
         std::lock_guard<std::mutex> lock(clientConnectionsMutex);
-        for (const ClientConnection& conn : clientConnections) {
+        for (ClientConnection& conn : clientConnections) {
             closesocket(conn.socket);
         }
         clientConnections.clear();
