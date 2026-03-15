@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <fcntl.h> // 包含fcntl.h
 #endif
 
 
@@ -74,6 +75,17 @@ int main() {
     SOCKET serverSocket = createServerSocket(serverPort);
     g_serverSocket = serverSocket; // 设置全局服务器套接字
     
+    // 设置serverSocket为非阻塞
+    #ifdef _WIN32
+    u_long nonBlockMode = 1; // 1=非阻塞
+    if (ioctlsocket(serverSocket, FIONBIO, &nonBlockMode) == SOCKET_ERROR) {
+        std::cerr << "Set serverSocket non-block failed: " << WSAGetLastError() << std::endl;
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+    #endif
+    
     // 启动线程池
     g_threadPool.start();
     
@@ -82,6 +94,8 @@ int main() {
     inputThread.detach();
     
     // 主循环 - 只处理新连接
+    #ifdef _WIN32
+    // Windows平台使用select
     while (g_running) {
         fd_set readSet;
         FD_ZERO(&readSet);
@@ -91,50 +105,172 @@ int main() {
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         
-#ifdef _WIN32
         int result = select(0, &readSet, nullptr, nullptr, &timeout);
         if (result < 0) {
             int error = WSAGetLastError();
             std::cerr << "Select failed: " << error << std::endl;
             continue;
         }
-#else
-        int result = select(serverSocket + 1, &readSet, nullptr, nullptr, &timeout);
-        if (result < 0) {
-            std::cerr << "Select failed: " << strerror(errno) << std::endl;
-            continue;
-        }
-#endif
         
         if (result == 0) continue;
         
         // 检查服务器套接字是否有新连接
         if (FD_ISSET(serverSocket, &readSet)) {
             // 双重检查：先确认服务仍在运行，再accept
-            if (!g_running) {
+                if (!g_running) {
+                    continue;
+                }
+                
+                // 循环accept，处理所有待处理连接
+                while (true) {
+                    sockaddr_in clientAddr;
+                    int clientAddrSize = sizeof(clientAddr);
+                    SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+                    if (clientSocket == INVALID_SOCKET) {
+                        // 没有更多连接时退出循环
+                        int error = WSAGetLastError();
+                        if (error == WSAEWOULDBLOCK) {
+                            // 正常情况，没有更多连接
+                            break;
+                        } else if (error != WSAECONNRESET) {
+                            // 真正的错误
+                            std::cerr << "Accept failed: " << error << std::endl;
+                        }
+                        break;
+                    }
+                    
+                    // accept拿到clientSocket后，立即把它改回阻塞模式
+                    u_long blockMode = 0; // 0=阻塞模式
+                    if (ioctlsocket(clientSocket, FIONBIO, &blockMode) == SOCKET_ERROR) {
+                        std::cerr << "Set clientSocket block failed: " << WSAGetLastError() << std::endl;
+                        closesocket(clientSocket);
+                        continue;
+                    }
+                    
+                    std::string clientIP = inet_ntoa(clientAddr.sin_addr);
+                    
+                    // 将新客户端添加到线程池
+                    g_threadPool.addTask(clientSocket, clientIP);
+                }
+        }
+    }
+    #else
+    // Linux平台使用epoll
+    // 设置serverSocket为非阻塞
+    int flags = fcntl(serverSocket, F_GETFL, 0);
+    if (fcntl(serverSocket, F_SETFL, flags | O_NONBLOCK) == -1) {
+        std::cerr << "fcntl failed: " << strerror(errno) << std::endl;
+        return 1;
+    }
+    
+    int epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1) {
+        std::cerr << "epoll_create1 failed: " << strerror(errno) << std::endl;
+        return 1;
+    }
+    g_epoll_fd = epoll_fd; // 赋值给全局变量，让handleClientConnection能访问
+
+    struct epoll_event event;
+    event.events = EPOLLIN | EPOLLET; // 边缘触发
+    event.data.fd = serverSocket;
+
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, serverSocket, &event) == -1) {
+        std::cerr << "epoll_ctl failed: " << strerror(errno) << std::endl;
+        close(epoll_fd);
+        g_epoll_fd = -1;
+        return 1;
+    }
+
+    const int MAX_EVENTS = 1024; // 增大事件数组大小，支持更多并发
+    struct epoll_event events[MAX_EVENTS];
+
+    while (g_running) {
+        int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000); // 1秒超时
+        if (num_events == -1) {
+            if (errno == EINTR) {
                 continue;
             }
-            
-            sockaddr_in clientAddr;
-            int clientAddrSize = sizeof(clientAddr);
-            SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-            if (clientSocket != INVALID_SOCKET) {
-                std::string clientIP = inet_ntoa(clientAddr.sin_addr);
-                std::cout << "New connection from " << clientIP << std::endl;
+            std::cerr << "epoll_wait failed: " << strerror(errno) << std::endl;
+            break;
+        }
+
+        for (int i = 0; i < num_events; i++) {
+            // 区分serverSocket和clientSocket
+            if (events[i].data.fd == serverSocket) {
+                // 情况1：serverSocket的连接事件
+                // 双重检查：先确认服务仍在运行，再accept
+                if (!g_running) {
+                    continue;
+                }
                 
-                // 将新客户端添加到线程池
-                g_threadPool.addTask(clientSocket, clientIP);
+                // 循环accept，处理所有待处理连接（ET模式必须）
+                while (true) {
+                    sockaddr_in clientAddr;
+                    int clientAddrSize = sizeof(clientAddr);
+                    SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+                    if (clientSocket == INVALID_SOCKET) {
+                        // 没有更多连接时退出循环
+                        if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                        std::cerr << "Accept failed: " << strerror(errno) << std::endl;
+                        break;
+                    }
+                    
+                    // 处理新连接
+                    char ipBuffer[INET_ADDRSTRLEN] = {0};
+                    inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer));
+                    std::string clientIP = ipBuffer;
+                    
+                    // 存fd->ip的映射
+                    {
+                        std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+                        g_clientIPMap[clientSocket] = clientIP;
+                    }
+                    
+                    // 设置clientSocket为非阻塞
+                    int client_flags = fcntl(clientSocket, F_GETFL, 0);
+                    if (fcntl(clientSocket, F_SETFL, client_flags | O_NONBLOCK) == -1) {
+                        std::cerr << "fcntl client failed: " << strerror(errno) << std::endl;
+                        // 清理IP映射
+                        {
+                            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+                            g_clientIPMap.erase(clientSocket);
+                        }
+                        closesocket(clientSocket);
+                        continue;
+                    }
+                    
+                    // 将新的clientSocket注册到epoll
+                    struct epoll_event client_event;
+                    client_event.events = EPOLLIN | EPOLLET; // 边缘触发
+                    client_event.data.fd = clientSocket;
+                    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clientSocket, &client_event) == -1) {
+                        std::cerr << "epoll_ctl add client failed: " << strerror(errno) << std::endl;
+                        // 清理IP映射
+                        {
+                            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+                            g_clientIPMap.erase(clientSocket);
+                        }
+                        closesocket(clientSocket);
+                    }
+                }
             } else {
-                // 处理accept失败的情况
-#ifdef _WIN32
-                int error = WSAGetLastError();
-                std::cerr << "Accept failed: " << error << std::endl;
-#else
-                std::cerr << "Accept failed: " << strerror(errno) << std::endl;
-#endif
+                // 情况2：clientSocket的可读事件
+                // 双重检查：先确认服务仍在运行
+                if (!g_running) {
+                    continue;
+                }
+                
+                SOCKET clientSocket = events[i].data.fd;
+                // 将clientSocket交给线程池处理
+                g_threadPool.addTask(clientSocket, "");
             }
         }
     }
+
+    // 清理epoll实例
+    close(epoll_fd);
+    g_epoll_fd = -1;
+    #endif
 
 
 

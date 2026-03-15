@@ -2,7 +2,9 @@
 #define NETWORK_H
 
 #include <string>
-#include <atomic>
+#include <atomic>    // 包含atomic
+#include <unordered_map> // 包含unordered_map
+#include <mutex>     // 包含mutex
 
 // 跨平台Socket支持
 #ifdef _WIN32
@@ -14,6 +16,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 #define SOCKET int
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
@@ -21,6 +24,11 @@
 #define WSADATA int
 #define WSAStartup(a, b) 0
 #define WSACleanup() 0
+// 全局epoll实例，仅Linux分支
+extern int g_epoll_fd;
+// 客户端IP映射，仅Linux分支
+extern std::unordered_map<SOCKET, std::string> g_clientIPMap;
+extern std::mutex g_clientIPMapMutex;
 #endif
 
 extern std::atomic<bool> g_running;

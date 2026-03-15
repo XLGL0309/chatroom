@@ -1,8 +1,15 @@
-# 聊天室服务器
+# 聊天室项目
 
 ## 项目简介
 
 这是一个基于C++实现的聊天室服务器项目，提供了完整的用户注册、登录、消息发送和接收功能，并通过Web界面进行交互。项目采用了线程池技术处理并发连接，使用MySQL数据库存储用户信息和消息，支持跨平台运行（Windows和Linux）。
+
+## 项目亮点
+
+- **跨平台高并发网络模型**：Windows 用 select + 非阻塞监听 Socket，Linux 用 epoll ET 边缘触发 + 非阻塞监听 Socket，循环 accept 一次性取完所有待处理连接，解决高并发下的连接漏处理问题
+- **线程池解耦连接与业务**：生产者 - 消费者模式实现线程池，主线程负责接收连接，工作线程负责处理 HTTP 请求，避免频繁创建 / 销毁线程的性能开销
+- **安全与鲁棒性设计**：数据库密码无回显输入、参数化查询防 SQL 注入、HTML 转义防 XSS、全链路错误处理与资源清理
+- **工程化能力**：CMake 跨平台构建、配置文件动态配置、模块化代码分层（网络 / 数据库 / 业务 / 工具）
 
 ## 功能特性
 
@@ -15,34 +22,51 @@
 - **跨平台**：支持Windows和Linux平台
 - **安全**：使用参数化查询防止SQL注入
 - **可配置**：支持通过配置文件修改服务器配置
+- **实时消息更新**：使用短轮询技术实现消息实时更新
+- **智能线程数配置**：根据CPU核心数自动调整线程数
+- **支持中文**：支持中文用户名和消息内容
+
+## 技术栈
+
+- **后端**：C++
+- **数据库**：MySQL
+- **前端**：HTML5, CSS3, JavaScript
+- **网络**：Socket编程, HTTP协议
+- **并发处理**：线程池（生产者-消费者模式）
+- **实时通信**：短轮询（Short Polling）
 
 ## 项目结构
 
 ```
 chatroom/
-├── main.cpp          # 主程序入口
-├── include/          # 头文件目录
-│   ├── config.h      # 配置管理
-│   ├── database.h    # 数据库管理
-│   ├── message.h     # 消息管理
-│   ├── network.h     # 网络通信
-│   ├── threadpool.h  # 线程池
-│   ├── user.h        # 用户管理
-│   ├── utils.h       # 工具函数
-│   └── web.h         # Web处理
-├── src/              # 源代码目录
-│   ├── config.cpp    # 配置管理实现
-│   ├── database.cpp  # 数据库实现
-│   ├── message.cpp   # 消息实现
-│   ├── network.cpp   # 网络实现
-│   ├── threadpool.cpp# 线程池实现
-│   ├── user.cpp      # 用户实现
-│   ├── utils.cpp     # 工具函数实现
-│   └── web.cpp       # Web实现
-├── html/             # 前端页面
-│   ├── login.html    # 登录页面
-│   └── chat.html     # 聊天页面
-└── config.ini        # 配置文件
+├── main.cpp              # 主入口：服务启动、网络事件监听、连接分发
+├── include/              # 头文件目录
+│   ├── config.h          # 配置管理：读取config.ini，提供配置项接口
+│   ├── database.h        # 数据库管理：MySQL连接、参数化查询执行
+│   ├── message.h         # 消息管理：消息存储、查询
+│   ├── network.h         # 网络通信：Socket初始化、跨平台兼容、客户端连接处理
+│   ├── threadpool.h      # 线程池：生产者-消费者模式，任务分发
+│   ├── user.h            # 用户管理：用户注册、登录验证
+│   ├── utils.h           # 工具函数：HTML转义、字符串处理
+│   └── web.h             # Web处理：HTTP请求解析、响应生成、API接口
+├── src/                  # 源代码目录（与include一一对应）
+│   ├── config.cpp        # 配置管理实现
+│   ├── database.cpp      # 数据库实现
+│   ├── message.cpp       # 消息实现
+│   ├── network.cpp       # 网络实现
+│   ├── threadpool.cpp    # 线程池实现
+│   ├── user.cpp          # 用户实现
+│   ├── utils.cpp         # 工具函数实现
+│   └── web.cpp           # Web实现
+├── html/                 # 前端页面：登录/注册、聊天界面
+│   ├── login.html        # 登录/注册页面
+│   └── chat.html         # 聊天页面
+├── config.ini            # 配置文件：服务器端口、数据库连接信息
+├── CMakeLists.txt        # CMake配置：跨平台构建
+├── init_database.sql     # 数据库初始化：建表、索引
+├── make.bat              # Windows编译脚本
+├── clean.bat             # 清理脚本
+└── README.md             # 项目说明
 ```
 
 ## 环境要求
@@ -53,7 +77,7 @@ chatroom/
 - **Windows**：需要Winsock2库
 - **Linux**：需要Socket库
 
-## 安装步骤
+## 安装与运行
 
 ### 1. 安装依赖
 
@@ -65,219 +89,6 @@ chatroom/
 #### Linux
 - 安装MySQL数据库：`sudo apt-get install mysql-server`
 - 安装MySQL开发库：`sudo apt-get install libmysqlclient-dev`
-
-### 2. 创建数据库
-
-```sql
-CREATE DATABASE chatroom;
-USE chatroom;
-
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(50) NOT NULL,
-    ip VARCHAR(20) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE messages (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    from_user VARCHAR(50) NOT NULL,
-    to_user VARCHAR(50) NOT NULL,
-    content TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 创建定时清理过期消息的事件
-CREATE EVENT IF NOT EXISTS clean_expired_messages
-ON SCHEDULE EVERY 1 HOUR
-DO
-    DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR);
-```
-
-### 3. 编译项目
-
-#### Windows
-- 使用Visual Studio打开项目
-- 配置包含目录和库目录，确保能找到MySQL头文件和库文件
-- 编译项目
-
-#### Linux
-```bash
-g++ -std=c++11 -o chatroom_server main.cpp src/*.cpp -Iinclude -lmysqlclient -lpthread
-```
-
-## 配置文件
-
-项目使用`config.ini`文件进行配置，包含以下配置项：
-
-```ini
-# Server Configuration
-server_port=8888
-
-# Database Configuration
-db_host=localhost
-db_user=root
-db_name=chatroom
-```
-
-- `server_port`：服务器端口，默认为8888
-- `db_host`：数据库主机，默认为localhost
-- `db_user`：数据库用户名，默认为root
-- `db_name`：数据库名称，默认为chatroom
-
-## 使用方法
-
-1. **启动服务器**
-
-```bash
-./chatroom_server
-```
-
-2. **输入数据库密码**
-
-服务器启动时会提示输入数据库密码，输入后按回车继续。
-
-3. **访问Web界面**
-
-在浏览器中访问：`http://localhost:8888`
-
-4. **注册用户**
-
-在登录页面点击"注册"按钮，填写用户名和密码进行注册。
-
-5. **登录用户**
-
-在登录页面填写用户名和密码进行登录。
-
-6. **发送消息**
-
-登录后，在聊天页面填写接收者用户名和消息内容，点击"发送"按钮发送消息。
-
-7. **接收消息**
-
-聊天页面会自动轮询获取新消息，显示在消息列表中。
-
-## 安全措施
-
-- **SQL注入防护**：使用字符串转义防止SQL注入攻击
-- **密码安全**：密码存储在数据库中（建议在生产环境中使用密码哈希）
-- **用户验证**：确保用户只能在登录的IP上操作
-- **HTML转义**：防止XSS攻击
-
-## 性能优化
-
-- **线程池**：使用线程池处理并发连接，提高性能
-- **数据库索引**：在用户名字段上创建索引，提高查询速度
-- **消息清理**：定期清理过期消息，减少数据库负担
-
-## 注意事项
-
-- 本项目仅用于学习和测试，不建议在生产环境中使用
-- 在生产环境中，建议使用HTTPS加密传输
-- 建议使用密码哈希算法存储密码，而不是明文存储
-- 建议添加更多的错误处理和日志记录
-
-## 许可证
-
-本项目采用MIT许可证，详见LICENSE文件。
-# 聊天室项目
-
-这是一个基于C++和MySQL的聊天室项目，使用HTTP协议实现前后端通信，采用单线程selectIO多路复用技术处理并发连接。
-
-## 功能特点
-
-- 用户注册和登录
-- 发送和接收消息
-- 实时消息更新（短轮询技术）
-- 跨平台支持（Windows和Linux）
-- 数据库存储消息和用户信息
-- 消息24小时自动过期清理
-- 多线程并发处理（线程池技术）
-- 智能线程数配置（根据CPU核心数自动调整）
-- 支持中文用户名和消息内容
-
-## 技术栈
-
-- **后端**：C++
-- **数据库**：MySQL
-- **前端**：HTML5, CSS3, JavaScript
-- **网络**：Socket编程, HTTP协议
-- **并发处理**：线程池（生产者-消费者模式）
-- **实时通信**：短轮询（Short Polling）
-
-## 技术实现细节
-
-### 1. 网络模型
-
-- **多线程并发处理**：使用线程池技术，充分利用多核CPU性能
-- **生产者-消费者模式**：主线程负责接受新连接，工作线程负责处理请求
-- **跨平台Socket**：通过条件编译实现Windows和Linux平台的Socket兼容
-- **HTTP服务器**：自定义实现简单的HTTP服务器，支持GET和POST请求
-
-### 2. 线程池实现
-
-- **智能线程数配置**：根据CPU核心数自动调整线程数（核心数×2）
-- **任务队列**：使用线程安全的队列存储客户端连接
-- **条件变量**：实现工作线程的高效唤醒机制
-- **线程安全**：使用互斥锁和原子变量确保线程安全
-
-### 2. 消息更新机制
-
-- **短轮询**：前端JavaScript每1秒向服务器发送一次请求，获取最新消息
-- **API接口**：`/api/messages`接口返回JSON格式的消息数据
-- **消息过滤**：只返回当前用户的消息，确保消息的私密性
-
-### 3. 数据库设计
-
-- **用户表**：存储用户信息，包括用户名、密码和IP地址
-- **消息表**：存储消息内容，包括发送者、接收者、内容和时间戳
-- **自动清理**：通过数据库定时任务或应用层清理函数，自动删除24小时前的过期消息
-
-### 4. 安全措施
-
-- **HTML转义**：对用户输入进行HTML转义，防止XSS攻击
-- **输入验证**：验证用户名和密码的合法性
-- **IP绑定**：用户登录后绑定IP地址，防止账号被盗用
-
-## 项目结构
-
-```
-chatroom/
-├── html/                 # HTML页面
-│   ├── chat.html         # 聊天页面
-│   └── login.html        # 登录/注册页面
-├── include/              # 头文件
-│   ├── database.h        # 数据库管理
-│   ├── message.h         # 消息管理
-│   ├── network.h         # 网络管理
-│   ├── threadpool.h      # 线程池管理
-│   ├── user.h            # 用户管理
-│   ├── utils.h           # 工具函数
-│   └── web.h             # Web请求处理
-├── src/                  # 源文件
-│   ├── database.cpp      # 数据库实现
-│   ├── message.cpp       # 消息实现
-│   ├── network.cpp       # 网络实现
-│   ├── threadpool.cpp    # 线程池实现
-│   ├── user.cpp          # 用户实现
-│   ├── utils.cpp         # 工具函数实现
-│   └── web.cpp           # Web请求处理实现
-├── main.cpp              # 主入口文件
-├── CMakeLists.txt        # CMake配置文件
-├── init_database.sql     # 数据库初始化脚本
-├── make.bat              # Windows编译脚本
-├── clean.bat             # 清理脚本
-└── README.md             # 项目说明
-```
-
-## 安装与运行
-
-### 1. 环境要求
-
-- C++编译器（支持C++11及以上）
-- MySQL数据库
-- CMake（可选，用于跨平台编译）
 
 ### 2. 数据库初始化
 
@@ -296,7 +107,16 @@ make.bat
 
 #### Linux
 
-使用CMake编译：
+1. 安装 MySQL 开发库：`sudo apt-get install libmysqlclient-dev`
+2. 确保 CMakeLists.txt 中包含 MySQL 头文件和库文件链接：
+
+```cmake
+find_package(MySQL REQUIRED)
+include_directories(${MYSQL_INCLUDE_DIR})
+target_link_libraries(chatroom ${MYSQL_LIBRARIES})
+```
+
+3. 使用CMake编译：
 
 ```bash
 mkdir build
@@ -310,7 +130,8 @@ make
 1. 启动服务器：
 
 ```bash
-chatroom.exe
+chatroom.exe  # Windows
+./chatroom    # Linux
 ```
 
 2. 输入MySQL数据库密码
@@ -334,6 +155,7 @@ chatroom.exe
 | username | VARCHAR(50) | 用户名 |
 | password | VARCHAR(50) | 密码 |
 | ip | VARCHAR(20) | 用户IP地址 |
+| created_at | TIMESTAMP | 创建时间 |
 
 ### messages表
 
@@ -345,81 +167,97 @@ chatroom.exe
 | content | TEXT | 消息内容 |
 | timestamp | TIMESTAMP | 消息时间戳 |
 
+## 技术实现细节
+
+### 1. 网络模型
+
+- **多线程并发处理**：使用线程池技术，充分利用多核CPU性能
+- **生产者-消费者模式**：主线程负责接受新连接，工作线程负责处理请求
+- **跨平台Socket**：通过条件编译实现Windows和Linux平台的Socket兼容
+- **HTTP服务器**：自定义实现简单的HTTP服务器，支持GET和POST请求
+- **非阻塞监听Socket**：Windows/Linux 的 serverSocket 均设为非阻塞，配合循环 accept 一次性取完所有待处理连接，避免高并发下的连接漏处理
+- **客户端Socket适配**：Windows 下 clientSocket 改回阻塞模式，兼容现有线程池的 recv/send 逻辑；Linux 下 clientSocket 设为非阻塞（可优化方向：补充循环读 / 写逻辑）
+- **循环Accept**：实现循环accept处理所有待处理连接
+- **优雅关闭机制**：控制台指令（ exit/quit/stop ）触发服务退出，全链路资源清理（套接字、epoll 实例、线程池、数据库连接）
+- **双重检查服务状态**： accept 前二次检查 g_running ，避免对已关闭的 Socket 操作
+- **超时机制**： select/epoll_wait 设置 1 秒超时，保证服务能及时响应退出指令
+
+### 2. 线程池实现
+
+- **智能线程数配置**：根据CPU核心数自动调整线程数（核心数×2）
+- **任务队列**：使用线程安全的队列存储客户端连接
+- **条件变量**：实现工作线程的高效唤醒机制
+- **线程安全**：使用互斥锁和原子变量确保线程安全
+
+### 3. 消息更新机制
+
+- **短轮询**：前端JavaScript每1秒向服务器发送一次请求，获取最新消息
+- **API接口**：`/api/messages`接口返回JSON格式的消息数据
+- **消息过滤**：只返回当前用户的消息，确保消息的私密性
+
+### 4. 安全措施
+
+- **HTML转义**：对用户输入进行HTML转义，防止XSS攻击
+- **输入验证**：验证用户名和密码的合法性
+- **IP绑定**：用户登录后绑定IP地址，防止账号被盗用
+- **SQL注入防护**：使用参数化查询防止SQL注入攻击
+
+### 5. 性能优化
+
+- **线程池**：使用线程池处理并发连接，提高性能
+- **数据库索引**：在用户名字段上创建索引，提高查询速度
+- **消息清理**：定期清理过期消息，减少数据库负担
+- **非阻塞Socket**：提高网络处理效率
+- **循环发送**：确保所有数据都能发送出去
+
 ## 核心代码解析
 
 ### 1. 主循环（main.cpp）
 
-主线程负责接受新连接，并将连接添加到线程池：
+核心逻辑：非阻塞监听 Socket + 循环 accept  + 线程池分发
 
 ```cpp
-// 主循环 - 只处理新连接
-while (g_running) {
-    fd_set readSet;
-    FD_ZERO(&readSet);
-    FD_SET(serverSocket, &readSet);
-    
-    timeval timeout;
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    
-    int result = select(serverSocket + 1, &readSet, nullptr, nullptr, &timeout);
-    
-    if (result == 0) continue;
-    
-    // 检查服务器套接字是否有新连接
-    if (FD_ISSET(serverSocket, &readSet)) {
-        sockaddr_in clientAddr;
-        int clientAddrSize = sizeof(clientAddr);
-        SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-        if (clientSocket != INVALID_SOCKET) {
-            std::string clientIP = inet_ntoa(clientAddr.sin_addr);
-            std::cout << "New connection from " << clientIP << std::endl;
-            
-            // 将新客户端添加到线程池
-            g_threadPool.addTask(clientSocket, clientIP);
-        }
+// Windows平台循环accept，一次性取完所有待处理连接
+while (true) {
+    SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+    if (clientSocket == INVALID_SOCKET) {
+        int error = WSAGetLastError();
+        if (error == WSAEWOULDBLOCK) break; // 无更多连接，正常退出
+        // 真正的错误处理...
     }
+    // clientSocket改回阻塞模式，加入线程池
+    u_long blockMode = 0; // 0=阻塞模式
+    ioctlsocket(clientSocket, FIONBIO, &blockMode);
+    g_threadPool.addTask(clientSocket, clientIP);
 }
 ```
 
 ### 2. 短轮询实现（chat.html）
 
-前端使用JavaScript实现短轮询，每1秒向服务器请求最新消息：
+核心逻辑：定时向服务器请求最新消息，更新页面显示
 
 ```javascript
 // 短轮询函数
 function shortPollMessages() {
-    // 创建XMLHttpRequest对象
     let xhr = new XMLHttpRequest();
-    
     // 发送GET请求到API接口
-    xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username) + '&lastCount=' + currentMessageCount, true);
-    
+    xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username), true);
     // 处理响应
     xhr.onload = function() {
         if (xhr.status === 200) {
-            try {
-                // 解析JSON响应
-                const data = JSON.parse(xhr.responseText);
-                // 更新消息显示
-                updateMessages(data);
-            } catch (e) {
-                console.error('Error parsing JSON:', e);
-            }
+            const data = JSON.parse(xhr.responseText);
+            updateMessages(data);
         }
-        
-        // 无论成功失败，等待1秒后继续下一次轮询
+        // 1秒后继续轮询
         setTimeout(shortPollMessages, 1000);
     };
-    
-    // 发送请求
     xhr.send();
 }
 ```
 
-### 2. 线程池实现（threadpool.cpp）
+### 3. 线程池实现（threadpool.cpp）
 
-使用生产者-消费者模式实现线程池：
+核心逻辑：生产者-消费者模式，任务队列 + 条件变量唤醒
 
 ```cpp
 // 工作线程循环
@@ -428,30 +266,22 @@ void ThreadPool::workerLoop() {
         Task task;
         {
             std::unique_lock<std::mutex> lock(m_queueMutex);
-            
-            // 等待，直到队列不为空 或 停止运行
+            // 等待任务或退出信号
             m_cv.wait(lock, [this] {  
                 return !m_taskQueue.empty() || !m_running;  
             });
-            
             if (!m_running && m_taskQueue.empty()) return;
-            
             // 取出任务
             task = m_taskQueue.front();
             m_taskQueue.pop();
-        } // 锁在这里释放，处理任务时不持有锁
-        
-        // 处理任务（锁外执行）
-        std::cout << "Thread handling connection from " << task.ip << std::endl;
+        } // 锁外执行任务
         handleClientConnection(task.socket, task.ip);
-        closesocket(task.socket);
-        std::cout << "Thread finished connection from " << task.ip << std::endl;
     }
 }
 
 // 添加任务到线程池
 void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
-    {
+    { 
         std::lock_guard<std::mutex> lock(m_queueMutex);
         m_taskQueue.push({socket, ip});
     }
@@ -459,34 +289,83 @@ void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
 }
 ```
 
-### 3. 消息处理（message.cpp）
+### 4. 消息处理（message.cpp）
 
-消息的存储和获取实现：
+核心逻辑：参数化查询存储消息，按用户查询消息列表
 
 ```cpp
+// 存储消息
 void MessageManager::addMessage(const std::string& from, const std::string& to, const std::string& content) {
-    // 插入新消息到数据库
-    std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES ('" + from + "', '" + to + "', '" + content + "')";
-    g_databaseManager.executeUpdate(insertQuery);
+    std::lock_guard<std::mutex> lock(messageMutex);
+    // 参数化查询防SQL注入
+    std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES (?, ?, ?)";
+    std::vector<std::string> insertParams = {from, to, content};
+    g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
 }
 
+// 获取用户消息
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
+    std::lock_guard<std::mutex> lock(messageMutex);
     std::vector<Message> messages;
     // 查询用户的所有消息
-    std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = '" + username + "' ORDER BY timestamp ASC";
-    MYSQL_RES* result = g_databaseManager.executeQuery(query);
-    // 处理查询结果
-    // ...
+    std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = ? ORDER BY timestamp ASC";
+    std::vector<std::string> queryParams = {username};
+    MYSQL_RES* result = g_databaseManager.executePreparedQuery(query, queryParams);
+    // 处理查询结果...
     return messages;
 }
 ```
 
-## 安全注意事项
+## 配置文件
 
-- 本项目使用明文存储密码，仅用于学习目的
-- 生产环境中应使用密码哈希算法（如bcrypt）
-- 应添加更多的输入验证和安全措施
-- 应实现HTTPS加密传输
+项目使用`config.ini`文件进行配置，包含以下配置项：
+
+```ini
+# Server Configuration
+server_port=8888
+
+# Database Configuration
+db_host=localhost
+db_user=root
+db_name=chatroom
+```
+
+- `server_port`：服务器端口，默认为8888
+- `db_host`：数据库主机，默认为localhost
+- `db_user`：数据库用户名，默认为root
+- `db_name`：数据库名称，默认为chatroom
+
+## 技术难点与解决方案
+
+### 高并发下的连接漏处理
+- **难点**：同一时间大量客户端连接涌入时，单次 accept 只能取一个连接，导致连接积压
+- **解决方案**：将 serverSocket 设为非阻塞，循环 accept 直到返回 WSAEWOULDBLOCK/EAGAIN ，一次性取完内核全连接队列里的所有连接
+
+### 服务退出卡死问题
+- **难点**：阻塞模式下， select 返回可读但 accept 前客户端断开， accept 会一直阻塞，无法响应退出指令
+- **解决方案**： serverSocket 设为非阻塞， select/epoll_wait 设置 1 秒超时， accept 前二次检查 g_running ，保证服务能及时退出
+
+### 跨平台 Socket API 差异
+- **难点**：Windows 用 ioctlsocket 设置非阻塞，Linux 用 fcntl ；Windows 错误码用 WSAGetLastError ，Linux 用 errno
+- **解决方案**：通过条件编译（ #ifdef _WIN32 ）封装跨平台兼容代码，统一接口
+
+## 生产环境优化方向
+
+本项目为学习项目，生产环境可参考以下优化：
+
+- **密码安全**：使用 bcrypt/Argon2 等密码哈希算法存储密码，而非明文
+- **传输安全**：集成 OpenSSL 实现 HTTPS 加密传输，防止数据窃听
+- **实时通信**：将短轮询替换为 WebSocket ，降低服务器负载，提升实时性
+- **数据库优化**：封装数据库连接池，避免单连接的性能瓶颈
+- **日志系统**：接入 spdlog 等日志库，实现分级日志（DEBUG/INFO/ERROR），便于问题排查
+- **信号处理**：Linux 下补充 SIGINT/SIGTERM 信号处理，完善优雅关闭
+
+## 注意事项
+
+- 本项目仅用于学习和测试，不建议在生产环境中使用
+- 在生产环境中，建议使用HTTPS加密传输
+- 建议使用密码哈希算法存储密码，而不是明文存储
+- 建议添加更多的错误处理和日志记录
 
 ## 许可证
 

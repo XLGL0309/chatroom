@@ -64,10 +64,7 @@ void ThreadPool::workerLoop() {
         } // 锁在这里释放，处理任务时不持有锁
         
         // 处理任务（锁外执行）
-        std::cout << "Thread handling connection from " << task.ip << std::endl;
         handleClientConnection(task.socket, task.ip);
-        closesocket(task.socket);
-        std::cout << "Thread finished connection from " << task.ip << std::endl;
     }
 }
 
