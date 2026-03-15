@@ -110,6 +110,11 @@ int main() {
         
         // 检查服务器套接字是否有新连接
         if (FD_ISSET(serverSocket, &readSet)) {
+            // 双重检查：先确认服务仍在运行，再accept
+            if (!g_running) {
+                continue;
+            }
+            
             sockaddr_in clientAddr;
             int clientAddrSize = sizeof(clientAddr);
             SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
@@ -131,8 +136,7 @@ int main() {
         }
     }
 
-    // 停止线程池
-    g_threadPool.stop();
+
 
     // 关闭服务器套接字
     if (serverSocket != INVALID_SOCKET) {
