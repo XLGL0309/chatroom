@@ -77,8 +77,10 @@ void MessageManager::cleanExpiredMessages() {
     std::lock_guard<std::mutex> lock(messageMutex);
     
     // Clean all expired messages (older than 24 hours)
-    std::string deleteQuery = "DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-    g_databaseManager.executeUpdate(deleteQuery);
+    g_databaseManager.executePreparedUpdate(
+        "DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+        {}
+    );
 }
 
 void MessageManager::cleanExpiredMessagesForUser(const std::string& username) {

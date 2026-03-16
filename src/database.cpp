@@ -37,35 +37,9 @@ bool DatabaseManager::initialize(const std::string& host, const std::string& use
     return true;
 }
 
-MYSQL_RES* DatabaseManager::executeQuery(const std::string& query) {
-    std::lock_guard<std::mutex> lock(dbMutex);
-    if (!isConnected()) {
-        std::cerr << "Database not connected" << std::endl;
-        return nullptr;
-    }
-    
-    if (mysql_query(connection, query.c_str())) {
-        std::cerr << "Query execution failed: " << mysql_error(connection) << std::endl;
-        return nullptr;
-    }
-    
-    return mysql_store_result(connection);
-}
 
-int DatabaseManager::executeUpdate(const std::string& query) {
-    std::lock_guard<std::mutex> lock(dbMutex);
-    if (!isConnected()) {
-        std::cerr << "Database not connected" << std::endl;
-        return -1;
-    }
-    
-    if (mysql_query(connection, query.c_str())) {
-        std::cerr << "Update execution failed: " << mysql_error(connection) << std::endl;
-        return -1;
-    }
-    
-    return mysql_affected_rows(connection);
-}
+
+
 
 MYSQL_RES* DatabaseManager::executePreparedQuery(const std::string& query, const std::vector<std::string>& params) {
     std::lock_guard<std::mutex> lock(dbMutex);

@@ -21,8 +21,7 @@ public:
     // 执行SQL查询
     MYSQL_RES* executeQuery(const std::string& query);
     
-    // 执行SQL更新（INSERT、UPDATE、DELETE）
-    int executeUpdate(const std::string& query);
+
     
     // 执行参数化查询
     MYSQL_RES* executePreparedQuery(const std::string& query, const std::vector<std::string>& params);
