@@ -98,13 +98,47 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
     #endif
     
     char buffer[4096];
-    int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
-    if (bytesRead <= 0) {
-        cleanupClientSocket(clientSocket); // 调用辅助函数
-        return;
+    std::string request;
+    int bytesRead;
+    
+    // 循环接收，直到收到完整的 HTTP 请求
+    while (true) {
+        #ifdef _WIN32
+        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        #else
+        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0); // Linux 也支持 recv
+        #endif
+        
+        if (bytesRead <= 0) {
+            cleanupClientSocket(clientSocket); // 调用辅助函数
+            return;
+        }
+        
+        request.append(buffer, bytesRead);
+        
+        // 检查是否收到完整的 HTTP 请求头（寻找 \r\n\r\n）
+        size_t headerEnd = request.find("\r\n\r\n");
+        if (headerEnd != std::string::npos) {
+            // 检查是否有 Content-Length 头部
+            size_t contentLengthPos = request.find("Content-Length:");
+            if (contentLengthPos != std::string::npos && contentLengthPos < headerEnd) {
+                // 提取 Content-Length 值
+                size_t valueStart = request.find(" ", contentLengthPos) + 1;
+                size_t valueEnd = request.find("\r\n", valueStart);
+                std::string contentLengthStr = request.substr(valueStart, valueEnd - valueStart);
+                int contentLength = std::stoi(contentLengthStr);
+                
+                // 计算已接收的请求体大小
+                size_t bodyStart = headerEnd + 4; // 跳过 \r\n\r\n
+                // 如果请求体还没接收完，继续接收
+                if (request.length() - bodyStart < contentLength) {
+                    continue;
+                }
+            }
+            // 要么没有请求体，要么请求体已接收完整
+            break;
+        }
     }
-
-    std::string request(buffer, bytesRead);
     std::string response = handleHttpRequest(request, actualClientIP);
 
     // 循环发送，直到所有数据发完

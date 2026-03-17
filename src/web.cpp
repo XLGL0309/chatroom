@@ -196,8 +196,12 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
                 bool validUser = g_userManager.isValidUser(from, clientIP);
                 
                 if (!from.empty() && !to.empty() && !content.empty() && validUser) {
-                    // 检查是否给自己发消息
-                    if (from == to) {
+                    // 检查消息长度
+                    if (content.length() > 1000000) {
+                        // 消息过长，返回错误页面
+                        std::string errorPage = generatePage(from, "", "Message too long. Maximum length is 1,000,000 characters.");
+                        response = createHttpResponse(200, "OK", "text/html", errorPage);
+                    } else if (from == to) {
                         // 不能给自己发消息，返回错误页面
                         std::string errorPage = generatePage(from, "", "You cannot send messages to yourself");
                         response = createHttpResponse(200, "OK", "text/html", errorPage);

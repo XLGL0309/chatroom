@@ -31,9 +31,16 @@ void MessageManager::addMessage(const std::string& from, const std::string& to, 
     // 使用更细粒度的锁，只在需要时加锁
     std::lock_guard<std::mutex> lock(messageMutex);
     
+    // 检查消息长度，防止超过数据库限制
+    std::string messageContent = content;
+    if (messageContent.length() > 1000000) {  // 限制消息长度为1,000,000字符
+        std::cerr << "Message too long, truncated to 1,000,000 characters" << std::endl;
+        messageContent = messageContent.substr(0, 1000000);
+    }
+    
     // Insert new message using prepared statement
     std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES (?, ?, ?)";
-    std::vector<std::string> insertParams = {from, to, content};
+    std::vector<std::string> insertParams = {from, to, messageContent};
     g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
 }
 
