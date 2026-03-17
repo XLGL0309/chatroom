@@ -17,7 +17,6 @@ struct Message {
 
 class MessageManager {
 private:
-    std::map<std::string, std::vector<Message>> userMessages; // 按接收者分组存储消息
     std::mutex messageMutex;
 
 public:
