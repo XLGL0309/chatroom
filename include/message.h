@@ -16,9 +16,6 @@ struct Message {
 };
 
 class MessageManager {
-private:
-    std::mutex messageMutex;
-
 public:
     void addMessage(const std::string& from, const std::string& to, const std::string& content);
     std::vector<Message> getMessagesForUser(const std::string& username);
