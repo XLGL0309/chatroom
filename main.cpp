@@ -273,8 +273,8 @@ int main() {
     #endif
 
     
-    // 关闭服务器套接字
-    if (serverSocket != INVALID_SOCKET) {
+    // 关闭服务器套接字（仅在未被关闭的情况下）
+    if (serverSocket != INVALID_SOCKET && g_serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
         g_serverSocket = INVALID_SOCKET;
     }
