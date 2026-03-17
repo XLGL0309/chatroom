@@ -110,8 +110,29 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
         #endif
         
         if (bytesRead <= 0) {
-            cleanupClientSocket(clientSocket); // 调用辅助函数
-            return;
+            if (bytesRead == 0) {
+                // 客户端正常关闭连接
+                cleanupClientSocket(clientSocket); // 调用辅助函数
+                return;
+            } else {
+                // 发生错误
+                #ifdef _WIN32
+                int error = WSAGetLastError();
+                if (error == WSAEWOULDBLOCK) {
+                    // 非阻塞模式下暂时没有数据，跳出循环
+                    break;
+                }
+                #else
+                int error = errno;
+                if (error == EAGAIN || error == EWOULDBLOCK) {
+                    // 非阻塞模式下暂时没有数据，跳出循环
+                    break;
+                }
+                #endif
+                // 其他错误，关闭连接
+                cleanupClientSocket(clientSocket); // 调用辅助函数
+                return;
+            }
         }
         
         request.append(buffer, bytesRead);
