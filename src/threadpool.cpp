@@ -56,7 +56,8 @@ void ThreadPool::workerLoop() {
                 return !m_taskQueue.empty() || !m_running;  
             });
             
-            if (!m_running && m_taskQueue.empty()) return;
+            // 如果停止运行，不管队列是否为空，都立即退出
+            if (!m_running) return;
             
             // 取出任务
             task = m_taskQueue.front();

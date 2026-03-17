@@ -100,7 +100,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             std::string chatPage = generatePage(username, status, error);
             response = createHttpResponse(200, "OK", "text/html", chatPage);
         } else if (path.find("/api/messages") == 0) {
-            // 处理API请求，返回JSON格式的消息（长轮询）
+            // 处理API请求，返回JSON格式的消息（短轮询）
             std::string username = parseUrlParam(path, "username");
             std::string lastMessageCount = parseUrlParam(path, "lastCount");
             int lastCount = 0;
