@@ -13,9 +13,11 @@ SOCKET g_serverSocket = INVALID_SOCKET;
 
 #ifdef __linux__
 int g_epoll_fd = -1; // 定义全局epoll实例
+#endif
+
+// 跨平台的客户端IP映射
 std::unordered_map<SOCKET, std::string> g_clientIPMap; // 定义客户端IP映射
 std::mutex g_clientIPMapMutex; // 定义客户端IP映射的互斥锁
-#endif
 
 // 辅助函数：清理客户端socket（从epoll移除并关闭）
 static void cleanupClientSocket(SOCKET clientSocket) {
@@ -84,19 +86,7 @@ SOCKET createServerSocket(int port) {
 }
 
 void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
-    // 获取客户端IP地址
-    std::string actualClientIP = clientIP;
-    #ifdef __linux__
-    {
-        std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-        auto it = g_clientIPMap.find(clientSocket);
-        if (it != g_clientIPMap.end()) {
-            actualClientIP = it->second;
-            g_clientIPMap.erase(it); // 取完就清理，避免内存泄漏
-        }
-    }
-    #endif
-    
+
     char buffer[4096];
     std::string request;
     int bytesRead;
@@ -160,7 +150,7 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
             break;
         }
     }
-    std::string response = handleHttpRequest(request, actualClientIP);
+    std::string response = handleHttpRequest(request, clientIP);
 
     // 循环发送，直到所有数据发完
     int totalSent = 0;

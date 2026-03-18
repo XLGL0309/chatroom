@@ -62,7 +62,7 @@ int main() {
     #endif
     std::cout << std::endl;
     
-    // Initialize database connection
+    // 初始化数据库连接
     if (!g_databaseManager.initialize(dbHost, dbUser, dbPassword, dbName)) {
         std::cerr << "Database initialization failed, server cannot start" << std::endl;
         return 1;
@@ -93,13 +93,23 @@ int main() {
     std::thread inputThread(consoleInputThread);
     inputThread.detach();
     
-    // 主循环 - 只处理新连接
+    // 主循环 - 处理新连接和客户端通信
     #ifdef _WIN32
     // Windows平台使用select
+
+    
     while (g_running) {
         fd_set readSet;
         FD_ZERO(&readSet);
         FD_SET(serverSocket, &readSet);
+        
+        // 将所有客户端套接字添加到readSet
+        {  
+            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+            for (auto& pair : g_clientIPMap) {
+                FD_SET(pair.first, &readSet);
+            }
+        }
         
         timeval timeout;
         timeout.tv_sec = 1;
@@ -117,41 +127,62 @@ int main() {
         // 检查服务器套接字是否有新连接
         if (FD_ISSET(serverSocket, &readSet)) {
             // 双重检查：先确认服务仍在运行，再accept
-                if (!g_running) {
+            if (!g_running) {
+                continue;
+            }
+            
+            // 循环accept，处理所有待处理连接
+            while (true) {
+                sockaddr_in clientAddr;
+                int clientAddrSize = sizeof(clientAddr);
+                SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
+                if (clientSocket == INVALID_SOCKET) {
+                    // 没有更多连接时退出循环
+                    int error = WSAGetLastError();
+                    if (error == WSAEWOULDBLOCK) {
+                        // 正常情况，没有更多连接
+                        break;
+                    } else if (error != WSAECONNRESET) {
+                        // 真正的错误
+                        std::cerr << "Accept failed: " << error << std::endl;
+                    }
+                    break;
+                }
+                
+                // 设置clientSocket为非阻塞模式
+                u_long nonBlockMode = 1; // 1=非阻塞
+                if (ioctlsocket(clientSocket, FIONBIO, &nonBlockMode) == SOCKET_ERROR) {
+                    std::cerr << "Set clientSocket non-block failed: " << WSAGetLastError() << std::endl;
+                    closesocket(clientSocket);
                     continue;
                 }
                 
-                // 循环accept，处理所有待处理连接
-                while (true) {
-                    sockaddr_in clientAddr;
-                    int clientAddrSize = sizeof(clientAddr);
-                    SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-                    if (clientSocket == INVALID_SOCKET) {
-                        // 没有更多连接时退出循环
-                        int error = WSAGetLastError();
-                        if (error == WSAEWOULDBLOCK) {
-                            // 正常情况，没有更多连接
-                            break;
-                        } else if (error != WSAECONNRESET) {
-                            // 真正的错误
-                            std::cerr << "Accept failed: " << error << std::endl;
-                        }
-                        break;
-                    }
-                    
-                    // accept拿到clientSocket后，立即把它改回阻塞模式
-                    u_long blockMode = 0; // 0=阻塞模式
-                    if (ioctlsocket(clientSocket, FIONBIO, &blockMode) == SOCKET_ERROR) {
-                        std::cerr << "Set clientSocket block failed: " << WSAGetLastError() << std::endl;
-                        closesocket(clientSocket);
-                        continue;
-                    }
-                    
-                    std::string clientIP = inet_ntoa(clientAddr.sin_addr);
-                    
-                    // 将新客户端添加到线程池
-                    g_threadPool.addTask(clientSocket, clientIP);
+                std::string clientIP = inet_ntoa(clientAddr.sin_addr);
+                
+                // 存储客户端套接字和IP
+                {  
+                    std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+                    g_clientIPMap[clientSocket] = clientIP;
                 }
+            }
+        }
+        
+        // 检查客户端套接字是否有数据
+        {  
+            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+            for (auto it = g_clientIPMap.begin(); it != g_clientIPMap.end();) {
+                SOCKET clientSocket = it->first;
+                std::string clientIP = it->second;
+                
+                if (FD_ISSET(clientSocket, &readSet)) {
+                    // 客户端有数据，交给线程池处理
+                    g_threadPool.addTask(clientSocket, clientIP);
+                    // 从列表中移除，因为线程处理完后会关闭
+                    it = g_clientIPMap.erase(it);
+                } else {
+                    ++it;
+                }
+            }
         }
     }
     #else
@@ -241,7 +272,7 @@ int main() {
                     
                     // 将新的clientSocket注册到epoll
                     struct epoll_event client_event;
-                    client_event.events = EPOLLIN | EPOLLET; // 边缘触发
+                    client_event.events = EPOLLIN | EPOLLET | EPOLLONESHOT; // 边缘触发 + 一次性事件
                     client_event.data.fd = clientSocket;
                     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clientSocket, &client_event) == -1) {
                         std::cerr << "epoll_ctl add client failed: " << strerror(errno) << std::endl;
@@ -262,7 +293,17 @@ int main() {
                 
                 SOCKET clientSocket = events[i].data.fd;
                 // 将clientSocket交给线程池处理
-                g_threadPool.addTask(clientSocket, "");
+                std::string clientIP;
+                {
+                    std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
+                    auto it = g_clientIPMap.find(clientSocket);
+                    if (it != g_clientIPMap.end()) {
+                        clientIP = it->second;
+                        g_clientIPMap.erase(it);
+                    }
+                }
+                g_threadPool.addTask(clientSocket, clientIP);
+                
             }
         }
     }

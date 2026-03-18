@@ -26,10 +26,11 @@
 #define WSACleanup() 0
 // 全局epoll实例，仅Linux分支
 extern int g_epoll_fd;
-// 客户端IP映射，仅Linux分支
+#endif
+
+// 客户端IP映射，跨平台
 extern std::unordered_map<SOCKET, std::string> g_clientIPMap;
 extern std::mutex g_clientIPMapMutex;
-#endif
 
 extern std::atomic<bool> g_running;
 extern SOCKET g_serverSocket;
