@@ -6,7 +6,7 @@
 
 ## 项目亮点
 
-- **跨平台高并发网络模型**：Windows 用 select + 非阻塞监听 Socket，Linux 用 epoll ET 边缘触发 + 非阻塞监听 Socket，循环 accept 一次性取完所有待处理连接，解决高并发下的连接漏处理问题
+- **跨平台高并发网络模型**：Windows 用 select + 非阻塞监听 Socket，Linux 用 epoll ET 边缘触发 + EPOLLONESHOT + 非阻塞监听 Socket，循环 accept 一次性取完所有待处理连接，解决高并发下的连接漏处理问题和多线程同时处理同一连接的问题
 - **线程池解耦连接与业务**：生产者 - 消费者模式实现线程池，主线程负责接收连接，工作线程负责处理 HTTP 请求，避免频繁创建 / 销毁线程的性能开销
 - **安全与鲁棒性设计**：数据库密码无回显输入、参数化查询防 SQL 注入、HTML 转义防 XSS、全链路错误处理与资源清理
 - **工程化能力**：CMake 跨平台构建、配置文件动态配置、模块化代码分层（网络 / 数据库 / 业务 / 工具）
@@ -176,7 +176,7 @@ chatroom.exe  # Windows
 - **跨平台Socket**：通过条件编译实现Windows和Linux平台的Socket兼容
 - **HTTP服务器**：自定义实现简单的HTTP服务器，支持GET和POST请求
 - **非阻塞监听Socket**：Windows/Linux 的 serverSocket 均设为非阻塞，配合循环 accept 一次性取完所有待处理连接，避免高并发下的连接漏处理
-- **客户端Socket适配**：Windows 下 clientSocket 改回阻塞模式，兼容现有线程池的 recv/send 逻辑；Linux 下 clientSocket 设为非阻塞（可优化方向：补充循环读 / 写逻辑）
+- **客户端Socket适配**：Windows 下 clientSocket 改回阻塞模式，兼容现有线程池的 recv/send 逻辑；Linux 下 clientSocket 设为非阻塞，并使用 EPOLLONESHOT 确保每个事件只被一个线程处理（可优化方向：补充循环读 / 写逻辑）
 - **循环Accept**：实现循环accept处理所有待处理连接
 - **优雅关闭机制**：控制台指令（ exit/quit/stop ）触发服务退出，全链路资源清理（套接字、epoll 实例、线程池、数据库连接）
 - **双重检查服务状态**： accept 前二次检查 g_running ，避免对已关闭的 Socket 操作
