@@ -68,18 +68,7 @@ std::string generatePage(const std::string& username, const std::string& status 
     return page;
 }
 
-std::string handleHttpRequest(const std::string& request, const std::string& clientIP) {
-    // 解析HTTP请求
-    size_t methodEnd = request.find(" ");
-    size_t pathEnd = request.find(" ", methodEnd + 1);
-    std::string method = "";
-    std::string path = "";
-    if (methodEnd != std::string::npos && pathEnd != std::string::npos) {
-        method = request.substr(0, methodEnd);
-        path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
-    }
-    
-    
+std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body, const std::string& clientIP) {
     std::string response;
 
     if (method == "GET") {
@@ -130,9 +119,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
     } else if (method == "POST") {
         if (path == "/login") {
             // 处理登录
-            size_t bodyPos = request.find("\r\n\r\n");
-            if (bodyPos != std::string::npos) {
-                std::string body = request.substr(bodyPos + 4);
+            if (!body.empty()) {
                 std::string username = parseFormData(body, "username");
                 std::string password = parseFormData(body, "password");
                 // 解码HTML实体，确保处理的是原始中文字符
@@ -158,9 +145,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             }
         } else if (path == "/register") {
             // 处理注册
-            size_t bodyPos = request.find("\r\n\r\n");
-            if (bodyPos != std::string::npos) {
-                std::string body = request.substr(bodyPos + 4);
+            if (!body.empty()) {
                 std::string username = parseFormData(body, "username");
                 std::string password = parseFormData(body, "password");
                 // 解码HTML实体，确保处理的是原始中文字符
@@ -185,9 +170,7 @@ std::string handleHttpRequest(const std::string& request, const std::string& cli
             }
         } else if (path == "/send") {
             // 处理发送消息
-            size_t bodyPos = request.find("\r\n\r\n");
-            if (bodyPos != std::string::npos) {
-                std::string body = request.substr(bodyPos + 4);
+            if (!body.empty()) {
                 std::string from = parseFormData(body, "from");
                 std::string to = parseFormData(body, "to");
                 std::string content = parseFormData(body, "content");

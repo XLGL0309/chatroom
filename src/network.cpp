@@ -163,7 +163,22 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
             break;
         }
     }
-    std::string response = handleHttpRequest(request, clientIP);
+    // 解析HTTP请求的方法、路径和请求体
+    std::string method, path, body;
+    size_t methodEnd = request.find(" ");
+    size_t pathEnd = request.find(" ", methodEnd + 1);
+    if (methodEnd != std::string::npos && pathEnd != std::string::npos) {
+        method = request.substr(0, methodEnd);
+        path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
+    }
+    
+    // 提取请求体
+    size_t headerEnd = request.find("\r\n\r\n");
+    if (headerEnd != std::string::npos) {
+        body = request.substr(headerEnd + 4);
+    }
+    
+    std::string response = handleHttpRequest(method, path, body, clientIP);
 
     // 循环发送，直到所有数据发完
     int totalSent = 0;
