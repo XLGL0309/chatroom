@@ -92,6 +92,10 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
     int bytesRead;
     
     // 循环接收，直到收到完整的 HTTP 请求
+    bool headerFound = false;
+    int contentLength = -1;
+    size_t headerEnd = 0;
+    
     while (true) {
         #ifdef _WIN32
         bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
@@ -127,19 +131,28 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
         
         request.append(buffer, bytesRead);
         
-        // 检查是否收到完整的 HTTP 请求头（寻找 \r\n\r\n）
-        size_t headerEnd = request.find("\r\n\r\n");
-        if (headerEnd != std::string::npos) {
-            // 检查是否有 Content-Length 头部
-            size_t contentLengthPos = request.find("Content-Length:");
-            if (contentLengthPos != std::string::npos && contentLengthPos < headerEnd) {
-                // 提取 Content-Length 值
-                size_t valueStart = request.find(" ", contentLengthPos) + 1;
-                size_t valueEnd = request.find("\r\n", valueStart);
-                std::string contentLengthStr = request.substr(valueStart, valueEnd - valueStart);
-                int contentLength = std::stoi(contentLengthStr);
+        if (!headerFound) {
+            // 检查是否收到完整的 HTTP 请求头（寻找 \r\n\r\n）
+            headerEnd = request.find("\r\n\r\n");
+            if (headerEnd != std::string::npos) {
+                headerFound = true;
                 
-                // 计算已接收的请求体大小
+                // 检查是否有 Content-Length 头部
+                size_t contentLengthPos = request.find("Content-Length:");
+                if (contentLengthPos != std::string::npos && contentLengthPos < headerEnd) {
+                    // 提取 Content-Length 值
+                    size_t valueStart = request.find(" ", contentLengthPos) + 1;
+                    size_t valueEnd = request.find("\r\n", valueStart);
+                    std::string contentLengthStr = request.substr(valueStart, valueEnd - valueStart);
+                    contentLength = std::stoi(contentLengthStr);
+                }
+            }
+        }
+        
+        // 如果头部已找到
+        if (headerFound) {
+            // 如果有 Content-Length，检查请求体是否完整
+            if (contentLength > 0) {
                 size_t bodyStart = headerEnd + 4; // 跳过 \r\n\r\n
                 // 如果请求体还没接收完，继续接收
                 if (request.length() - bodyStart < contentLength) {
