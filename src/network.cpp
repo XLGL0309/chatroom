@@ -31,6 +31,122 @@ static void cleanupClientSocket(SOCKET clientSocket) {
     closesocket(clientSocket);
 }
 
+// 辅助函数：接收完整的HTTP请求
+static std::string receiveHttpRequest(SOCKET clientSocket) {
+    char buffer[4096];
+    std::string request;
+    int bytesRead;
+    bool headerFound = false;
+    int contentLength = -1;
+    size_t headerEnd = 0;
+    
+    while (true) {
+        #ifdef _WIN32
+        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        #else
+        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0); // Linux 也支持 recv
+        #endif
+        
+        if (bytesRead <= 0) {
+            if (bytesRead == 0) {
+                // 客户端正常关闭连接
+                return "";
+            } else {
+                // 发生错误
+                #ifdef _WIN32
+                int error = WSAGetLastError();
+                if (error == WSAEWOULDBLOCK) {
+                    // 非阻塞模式下暂时没有数据，跳出循环
+                    break;
+                }
+                #else
+                int error = errno;
+                if (error == EAGAIN || error == EWOULDBLOCK) {
+                    // 非阻塞模式下暂时没有数据，跳出循环
+                    break;
+                }
+                #endif
+                // 其他错误，返回空字符串
+                return "";
+            }
+        }
+        
+        request.append(buffer, bytesRead);
+        
+        if (!headerFound) {
+            // 检查是否收到完整的 HTTP 请求头（寻找 \r\n\r\n）
+            headerEnd = request.find("\r\n\r\n");
+            if (headerEnd != std::string::npos) {
+                headerFound = true;
+                
+                // 检查是否有 Content-Length 头部
+                size_t contentLengthPos = request.find("Content-Length:");
+                if (contentLengthPos != std::string::npos && contentLengthPos < headerEnd) {
+                    // 提取 Content-Length 值
+                    size_t valueStart = request.find(" ", contentLengthPos) + 1;
+                    size_t valueEnd = request.find("\r\n", valueStart);
+                    std::string contentLengthStr = request.substr(valueStart, valueEnd - valueStart);
+                    contentLength = std::stoi(contentLengthStr);
+                }
+            }
+        }
+        
+        // 如果头部已找到
+        if (headerFound) {
+            // 如果有 Content-Length，检查请求体是否完整
+            if (contentLength > 0) {
+                size_t bodyStart = headerEnd + 4; // 跳过 \r\n\r\n
+                // 如果请求体还没接收完，继续接收
+                if (request.length() - bodyStart < contentLength) {
+                    continue;
+                }
+            }
+            // 要么没有请求体，要么请求体已接收完整
+            break;
+        }
+    }
+    return request;
+}
+
+// 辅助函数：发送HTTP响应
+static bool sendHttpResponse(SOCKET clientSocket, const std::string& response) {
+    // 循环发送，直到所有数据发完
+    int totalSent = 0;
+    int responseLen = response.length();
+    while (totalSent < responseLen) {
+        int bytesSent = send(clientSocket, response.c_str() + totalSent, responseLen - totalSent, 0);
+        if (bytesSent == SOCKET_ERROR) {
+            std::cerr << "Send failed: " <<  
+                #ifdef _WIN32
+                    WSAGetLastError()
+                #else
+                    strerror(errno)
+                #endif
+                << std::endl;
+            return false;
+        }
+        totalSent += bytesSent;
+    }
+    return true;
+}
+
+// 辅助函数：解析HTTP请求
+static void parseHttpRequest(const std::string& request, std::string& method, std::string& path, std::string& body) {
+    // 解析HTTP请求的方法和路径
+    size_t methodEnd = request.find(" ");
+    size_t pathEnd = request.find(" ", methodEnd + 1);
+    if (methodEnd != std::string::npos && pathEnd != std::string::npos) {
+        method = request.substr(0, methodEnd);
+        path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
+    }
+    
+    // 提取请求体
+    size_t headerEndPos = request.find("\r\n\r\n");
+    if (headerEndPos != std::string::npos) {
+        body = request.substr(headerEndPos + 4);
+    }
+}
+
 void initializeNetwork() {
 #ifdef _WIN32
     WSADATA wsaData;
@@ -86,117 +202,24 @@ SOCKET createServerSocket(int port) {
 }
 
 void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
-
-    char buffer[4096];
-    std::string request;
-    int bytesRead;
-    
-    // 循环接收，直到收到完整的 HTTP 请求
-    bool headerFound = false;
-    int contentLength = -1;
-    size_t headerEnd = 0;
-    
-    while (true) {
-        #ifdef _WIN32
-        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
-        #else
-        bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0); // Linux 也支持 recv
-        #endif
-        
-        if (bytesRead <= 0) {
-            if (bytesRead == 0) {
-                // 客户端正常关闭连接
-                cleanupClientSocket(clientSocket); // 调用辅助函数
-                return;
-            } else {
-                // 发生错误
-                #ifdef _WIN32
-                int error = WSAGetLastError();
-                if (error == WSAEWOULDBLOCK) {
-                    // 非阻塞模式下暂时没有数据，跳出循环
-                    break;
-                }
-                #else
-                int error = errno;
-                if (error == EAGAIN || error == EWOULDBLOCK) {
-                    // 非阻塞模式下暂时没有数据，跳出循环
-                    break;
-                }
-                #endif
-                // 其他错误，关闭连接
-                cleanupClientSocket(clientSocket); // 调用辅助函数
-                return;
-            }
-        }
-        
-        request.append(buffer, bytesRead);
-        
-        if (!headerFound) {
-            // 检查是否收到完整的 HTTP 请求头（寻找 \r\n\r\n）
-            headerEnd = request.find("\r\n\r\n");
-            if (headerEnd != std::string::npos) {
-                headerFound = true;
-                
-                // 检查是否有 Content-Length 头部
-                size_t contentLengthPos = request.find("Content-Length:");
-                if (contentLengthPos != std::string::npos && contentLengthPos < headerEnd) {
-                    // 提取 Content-Length 值
-                    size_t valueStart = request.find(" ", contentLengthPos) + 1;
-                    size_t valueEnd = request.find("\r\n", valueStart);
-                    std::string contentLengthStr = request.substr(valueStart, valueEnd - valueStart);
-                    contentLength = std::stoi(contentLengthStr);
-                }
-            }
-        }
-        
-        // 如果头部已找到
-        if (headerFound) {
-            // 如果有 Content-Length，检查请求体是否完整
-            if (contentLength > 0) {
-                size_t bodyStart = headerEnd + 4; // 跳过 \r\n\r\n
-                // 如果请求体还没接收完，继续接收
-                if (request.length() - bodyStart < contentLength) {
-                    continue;
-                }
-            }
-            // 要么没有请求体，要么请求体已接收完整
-            break;
-        }
+    // 接收完整的HTTP请求
+    std::string request = receiveHttpRequest(clientSocket);
+    if (request.empty()) {
+        // 请求接收失败，清理连接
+        cleanupClientSocket(clientSocket);
+        return;
     }
+    
     // 解析HTTP请求的方法、路径和请求体
     std::string method, path, body;
-    size_t methodEnd = request.find(" ");
-    size_t pathEnd = request.find(" ", methodEnd + 1);
-    if (methodEnd != std::string::npos && pathEnd != std::string::npos) {
-        method = request.substr(0, methodEnd);
-        path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
-    }
+    parseHttpRequest(request, method, path, body);
     
-    // 提取请求体
-    size_t headerEnd = request.find("\r\n\r\n");
-    if (headerEnd != std::string::npos) {
-        body = request.substr(headerEnd + 4);
-    }
-    
+    // 处理HTTP请求
     std::string response = handleHttpRequest(method, path, body, clientIP);
 
-    // 循环发送，直到所有数据发完
-    int totalSent = 0;
-    int responseLen = response.length();
-    while (totalSent < responseLen) {
-        int bytesSent = send(clientSocket, response.c_str() + totalSent, responseLen - totalSent, 0);
-        if (bytesSent == SOCKET_ERROR) {
-            std::cerr << "Send failed: " <<  
-                #ifdef _WIN32
-                    WSAGetLastError()
-                #else
-                    strerror(errno)
-                #endif
-                << std::endl;
-            break;
-        }
-        totalSent += bytesSent;
-    }
+    // 发送HTTP响应
+    sendHttpResponse(clientSocket, response);
     
-    cleanupClientSocket(clientSocket); // 调用辅助函数
+    // 清理连接
+    cleanupClientSocket(clientSocket);
 }
