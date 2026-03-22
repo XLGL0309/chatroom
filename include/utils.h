@@ -3,9 +3,6 @@
 
 #include <string>
 
-// HTML转义函数，防止XSS攻击
-std::string htmlEscape(const std::string& str);
-
 // 验证用户名是否合法（允许：字母、数字、下划线、UTF-8中文）
 bool isValidUsername(const std::string& username);
 
@@ -14,6 +11,12 @@ std::string urlDecode(const std::string& str);
 
 // URL编码函数
 std::string urlEncode(const std::string& str);
+
+// HTML转义函数，防止XSS攻击
+std::string htmlEscape(const std::string& str);
+
+// JSON转义函数
+std::string jsonEscape(const std::string& str);
 
 // HTML实体解码函数
 std::string htmlEntityDecode(const std::string& str);

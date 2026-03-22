@@ -29,7 +29,7 @@ std::string generateMessagesJson(const std::vector<Message>& messages) {
     bool first = true;
     for (const auto& msg : messages) {
         if (!first) json += ", ";
-        json += "{\"from\": \"" + htmlEscape(msg.from) + "\", \"content\": \"" + htmlEscape(msg.content) + "\"}";
+        json += "{\"from\": \"" + jsonEscape(htmlEscape(msg.from)) + "\", \"content\": \"" + jsonEscape(htmlEscape(msg.content)) + "\"}";
         first = false;
     }
     json += "]}";

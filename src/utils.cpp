@@ -11,10 +11,31 @@ std::string htmlEscape(const std::string& str) {
             case '&': escaped += "&amp;"; break;
             case '"': escaped += "&quot;"; break;
             case '\'': escaped += "&#39;"; break;
-            default: escaped += c;
+            default: escaped += c; break;
         }
     }
     return escaped;
+}
+
+// JSON转义辅助函数
+std::string jsonEscape(const std::string& input) {
+    std::string output;
+    for (char c : input) {
+        switch (c) {
+            case '"': output += "\\\""; break;
+            case '\\': output += "\\\\"; break;
+            case '\b': output += "\\b"; break;
+            case '\f': output += "\\f"; break;
+            case '\n': output += "\\n"; break;
+            case '\r': output += "\\r"; break;
+            case '\t': output += "\\t"; break;
+            default:
+                // 对于非ASCII字符，保持原样
+                output += c;
+                break;
+        }
+    }
+    return output;
 }
 
 // Generate HTTP response
@@ -27,7 +48,7 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
         response += "Location: " + location + "\r\n";
     } else {
         // 非重定向响应需要添加Content-Type和Content-Length头
-            response += "Content-Type: " + contentType + "; charset=utf-8\r\n";
+        response += "Content-Type: " + contentType + "; charset=utf-8\r\n";
         response += "Content-Length: " + std::to_string(content.length()) + "\r\n";
     }
     //添加空行
