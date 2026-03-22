@@ -57,6 +57,9 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
     // 如果提供了location参数，则添加Location头（用于重定向）
     if (!location.empty()) {
         response += "Location: " + location + "\r\n";
+        // 重定向响应也应该包含Content-Type和Content-Length
+        response += "Content-Type: " + contentType + "; charset=utf-8\r\n";
+        response += "Content-Length: " + std::to_string(content.length()) + "\r\n";
     } else {
         // 非重定向响应需要添加Content-Type和Content-Length头
         response += "Content-Type: " + contentType + "; charset=utf-8\r\n";
@@ -65,10 +68,8 @@ std::string createHttpResponse(int statusCode, const std::string& statusMessage,
     //添加空行
     response += "\r\n";
     
-    // 非重定向响应需要添加响应体
-    if (location.empty()) {
-        response += content;
-    }
+    // 无论是否重定向，都添加响应体
+    response += content;
     
     return response;
 }
@@ -86,7 +87,8 @@ bool isValidUsername(const std::string& username) {
 
         if (c <= 0x7F) {
             // 1. Single byte: ASCII character
-            if (!isalnum(c) && c != '_') {
+            // 直接检查ASCII范围，避免依赖locale
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) {
                 return false; // Only letters, numbers, and underscore are allowed
             }
             i++;
@@ -103,10 +105,37 @@ bool isValidUsername(const std::string& username) {
                 return false;
             }
             
+            // 验证是否为中文汉字（基本汉字范围：0x4E00-0x9FFF）
+            int codePoint = ((c & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+            if (!(codePoint >= 0x4E00 && codePoint <= 0x9FFF)) {
+                return false;
+            }
+            
             i += 3;
             charCount++;
+        } else if ((c & 0xF0) == 0xF0) {
+            // 3. Four bytes: UTF-8 extended Chinese
+            if (i + 3 >= username.length()) return false; // Incomplete UTF-8 sequence
+            
+            unsigned char c2 = static_cast<unsigned char>(username[i+1]);
+            unsigned char c3 = static_cast<unsigned char>(username[i+2]);
+            unsigned char c4 = static_cast<unsigned char>(username[i+3]);
+            
+            // Check if subsequent bytes follow UTF-8 specification (10xxxxxx)
+            if ((c2 & 0xC0) != 0x80 || (c3 & 0xC0) != 0x80 || (c4 & 0xC0) != 0x80) {
+                return false;
+            }
+            
+            // 验证是否为扩展汉字（扩展汉字范围：0x10000-0x2A6DF）
+            int codePoint = ((c & 0x07) << 18) | ((c2 & 0x3F) << 12) | ((c3 & 0x3F) << 6) | (c4 & 0x3F);
+            if (!(codePoint >= 0x10000 && codePoint <= 0x2A6DF)) {
+                return false;
+            }
+            
+            i += 4;
+            charCount++;
         } else {
-            // 3. Other bytes (two-byte, four-byte emoji, etc.): not allowed
+            // 4. Other bytes (two-byte, etc.): not allowed
             return false;
         }
 
@@ -121,11 +150,26 @@ bool isValidUsername(const std::string& username) {
 // URL decode function
 std::string urlDecode(const std::string& str) {
     std::string decoded;
+    decoded.reserve(str.size()); // 预分配内存，避免多次重新分配
     for (size_t i = 0; i < str.length(); i++) {
         if (str[i] == '%' && i + 2 < str.length()) {
-            char hex[3] = {str[i+1], str[i+2], 0};
-            decoded += static_cast<char>(strtol(hex, nullptr, 16));
-            i += 2;
+            // 检查是否为合法的十六进制字符
+            if (isxdigit(static_cast<unsigned char>(str[i+1])) && 
+                isxdigit(static_cast<unsigned char>(str[i+2]))) {
+                char hex[3] = {str[i+1], str[i+2], 0};
+                char* endptr = nullptr;
+                unsigned char val = static_cast<unsigned char>(strtol(hex, &endptr, 16));
+                if (endptr == hex + 2) { // 确保两位都被转换
+                    decoded += static_cast<char>(val);
+                    i += 2;
+                } else {
+                    // 如果转换失败，保持原样
+                    decoded += str[i];
+                }
+            } else {
+                // 如果不是合法的十六进制字符，保持原样
+                decoded += str[i];
+            }
         } else if (str[i] == '+') {
             decoded += ' ';
         } else {
@@ -141,12 +185,15 @@ std::string urlEncode(const std::string& str) {
     encoded.reserve(str.length() * 3); // Preallocate space, worst case each character needs 3 characters space
     for (char c : str) {
         unsigned char uc = static_cast<unsigned char>(c);
-        if (isalnum(uc) || c == '-' || c == '_' || c == '.' || c == '~') {
+        // 直接检查ASCII范围，避免依赖locale
+        if ((uc >= 'a' && uc <= 'z') || (uc >= 'A' && uc <= 'Z') || (uc >= '0' && uc <= '9') || 
+            c == '-' || c == '_' || c == '.' || c == '~') {
             encoded += c;
         } else {
-            char hex[3];
-            sprintf(hex, "%02X", uc);
-            encoded += "%" + std::string(hex);
+            char hex[4]; // 2个十六进制字符 + 结束符
+            snprintf(hex, sizeof(hex), "%02X", uc); // 使用snprintf避免缓冲区溢出
+            encoded += '%';
+            encoded += hex;
         }
     }
     return encoded;
@@ -185,7 +232,8 @@ std::string htmlEntityDecode(const std::string& str) {
                 if (end != std::string::npos) {
                     std::string numStr = str.substr(i + 2, end - i - 2);
                     try {
-                        int code = std::stoi(numStr);
+                        // 指定基数为10，避免八进制解析错误
+                        int code = std::stoi(numStr, nullptr, 10);
                         if (code >= 0 && code <= 0x10FFFF) {
                             // Handle UTF-8 encoding (using lambda expression)
                             auto appendUtf8 = [&decoded](int code) {
@@ -241,21 +289,44 @@ std::string htmlEntityDecode(const std::string& str) {
 
 // Parse form data
 std::string parseFormData(const std::string& data, const std::string& key) {
-    size_t pos = data.find(key + "=");
-    if (pos == std::string::npos) return "";
-    pos += key.length() + 1;
-    size_t end = data.find("&", pos);
-    if (end == std::string::npos) end = data.length();
-    std::string value = data.substr(pos, end - pos);
-    // Use unified URL decode function
-    return urlDecode(value);
+    size_t pos = 0;
+    while (pos < data.length()) {
+        // 找到当前参数的起始位置
+        size_t paramStart = pos;
+        // 找到参数结束位置（下一个&或字符串结束）
+        size_t paramEnd = data.find("&", paramStart);
+        if (paramEnd == std::string::npos) paramEnd = data.length();
+        
+        // 提取当前参数
+        std::string param = data.substr(paramStart, paramEnd - paramStart);
+        // 找到键值对的分隔符
+        size_t equalsPos = param.find("=");
+        if (equalsPos != std::string::npos) {
+            std::string currentKey = param.substr(0, equalsPos);
+            // 确保匹配完整的键名
+            if (currentKey == key) {
+                std::string value = param.substr(equalsPos + 1);
+                // Use unified URL decode function
+                return urlDecode(value);
+            }
+        }
+        
+        // 移动到下一个参数
+        pos = paramEnd + 1;
+    }
+    return "";
 }
 
 // Get content type
 std::string getContentType(const std::string& path) {
-    if (path.find(".html") != std::string::npos) return "text/html";
-    if (path.find(".css") != std::string::npos) return "text/css";
-    if (path.find(".js") != std::string::npos) return "application/javascript";
+    // 只检查文件扩展名，从最后一个点开始
+    size_t dotPos = path.rfind('.');
+    if (dotPos != std::string::npos) {
+        std::string extension = path.substr(dotPos);
+        if (extension == ".html") return "text/html";
+        if (extension == ".css") return "text/css";
+        if (extension == ".js") return "application/javascript";
+    }
     return "text/plain";
 }
 
@@ -269,23 +340,31 @@ std::string parseUrlParam(const std::string& url, const std::string& key) {
     
     std::string query = url.substr(queryPos + 1);
     
-    // 查找指定参数
-    size_t paramPos = query.find(key + "=");
-    if (paramPos == std::string::npos) {
-        return "";
+    size_t pos = 0;
+    while (pos < query.length()) {
+        // 找到当前参数的起始位置
+        size_t paramStart = pos;
+        // 找到参数结束位置（下一个&或字符串结束）
+        size_t paramEnd = query.find("&", paramStart);
+        if (paramEnd == std::string::npos) paramEnd = query.length();
+        
+        // 提取当前参数
+        std::string param = query.substr(paramStart, paramEnd - paramStart);
+        // 找到键值对的分隔符
+        size_t equalsPos = param.find("=");
+        if (equalsPos != std::string::npos) {
+            std::string currentKey = param.substr(0, equalsPos);
+            // 确保匹配完整的键名
+            if (currentKey == key) {
+                std::string value = param.substr(equalsPos + 1);
+                // URL解码
+                return urlDecode(value);
+            }
+        }
+        
+        // 移动到下一个参数
+        pos = paramEnd + 1;
     }
     
-    // 提取参数值
-    size_t valueStart = paramPos + key.length() + 1;
-    size_t valueEnd = query.find("&", valueStart);
-    std::string value;
-    
-    if (valueEnd != std::string::npos) {
-        value = query.substr(valueStart, valueEnd - valueStart);
-    } else {
-        value = query.substr(valueStart);
-    }
-    
-    // URL解码
-    return urlDecode(value);
+    return "";
 }
