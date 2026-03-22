@@ -3,12 +3,14 @@
 #include <unordered_map>
 // HTML escape function to prevent XSS attacks
 std::string htmlEscape(const std::string& str) {
+    // 预分配内存
     std::string escaped;
+    escaped.reserve(str.length() * 2);
     for (char c : str) {
         switch (c) {
+            case '&': escaped += "&amp;"; break;
             case '<': escaped += "&lt;"; break;
             case '>': escaped += "&gt;"; break;
-            case '&': escaped += "&amp;"; break;
             case '"': escaped += "&quot;"; break;
             case '\'': escaped += "&#39;"; break;
             default: escaped += c; break;
@@ -19,8 +21,10 @@ std::string htmlEscape(const std::string& str) {
 
 // JSON转义辅助函数
 std::string jsonEscape(const std::string& input) {
+    // 预分配内存
     std::string output;
-    for (char c : input) {
+    output.reserve(input.length() * 2);
+    for (unsigned char c : input) {
         switch (c) {
             case '"': output += "\\\""; break;
             case '\\': output += "\\\\"; break;
@@ -30,8 +34,15 @@ std::string jsonEscape(const std::string& input) {
             case '\r': output += "\\r"; break;
             case '\t': output += "\\t"; break;
             default:
-                // 对于非ASCII字符，保持原样
-                output += c;
+                // 处理所有控制字符（U+0000到U+001F）
+                if (c < 0x20) {
+                    char hex[7]; // \uXXXX 需要6个字符
+                    snprintf(hex, sizeof(hex), "\\u%04X", c);
+                    output += hex;
+                } else {
+                    // 对于非ASCII字符，保持原样
+                    output += c;
+                }
                 break;
         }
     }
