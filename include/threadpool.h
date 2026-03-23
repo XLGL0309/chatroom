@@ -12,7 +12,6 @@
 // 任务结构体
 struct Task {
     SOCKET socket;
-    std::string ip;
 };
 
 // 线程池类
@@ -23,7 +22,7 @@ public:
     
     void start();
     void stop();
-    void addTask(SOCKET socket, const std::string& ip);
+    void addTask(SOCKET socket);
     
 private:
     int m_numThreads;

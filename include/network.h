@@ -3,7 +3,7 @@
 
 #include <string>
 #include <atomic>    // 包含atomic
-#include <unordered_map> // 包含unordered_map
+#include <unordered_set> // 包含unordered_set
 #include <mutex>     // 包含mutex
 
 // 跨平台Socket支持
@@ -28,15 +28,15 @@
 extern int g_epoll_fd;
 #endif
 
-// 客户端IP映射，跨平台
-extern std::unordered_map<SOCKET, std::string> g_clientIPMap;
-extern std::mutex g_clientIPMapMutex;
+// 客户端Socket集合，跨平台
+extern std::unordered_set<SOCKET> g_clientSocketSet;
+extern std::mutex g_clientSocketSetMutex;
 
 extern std::atomic<bool> g_running;
 extern SOCKET g_serverSocket;
 
 void initializeNetwork();
 SOCKET createServerSocket(int port);
-void handleClientConnection(SOCKET clientSocket, const std::string& clientIP);
+void handleClientConnection(SOCKET clientSocket);
 
 #endif // NETWORK_H

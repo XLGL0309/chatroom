@@ -8,18 +8,14 @@
 struct User {
     std::string username;
     std::string password;
-    std::string ip;
 };
 
 class UserManager {
 private:
-    std::map<std::string, User> userMap;
-    std::mutex userMutex;
 
 public:
-    bool registerUser(const std::string& username, const std::string& password, const std::string& ip);
-    bool loginUser(const std::string& username, const std::string& password, const std::string& ip);
-    bool isValidUser(const std::string& username, const std::string& ip);
+    bool registerUser(const std::string& username, const std::string& password);
+    bool loginUser(const std::string& username, const std::string& password);
     bool userExists(const std::string& username);
 };
 

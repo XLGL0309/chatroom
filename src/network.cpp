@@ -15,9 +15,9 @@ SOCKET g_serverSocket = INVALID_SOCKET;
 int g_epoll_fd = -1; // 定义全局epoll实例
 #endif
 
-// 跨平台的客户端IP映射
-std::unordered_map<SOCKET, std::string> g_clientIPMap; // 定义客户端IP映射
-std::mutex g_clientIPMapMutex; // 定义客户端IP映射的互斥锁
+// 跨平台的客户端Socket集合
+std::unordered_set<SOCKET> g_clientSocketSet; // 定义客户端Socket集合
+std::mutex g_clientSocketSetMutex; // 定义客户端Socket集合的互斥锁
 
 // 辅助函数：清理客户端socket（从epoll移除并关闭）
 static void cleanupClientSocket(SOCKET clientSocket) {
@@ -50,19 +50,44 @@ static std::string receiveHttpRequest(SOCKET clientSocket) {
         if (bytesRead <= 0) {
             if (bytesRead == 0) {
                 // 客户端正常关闭连接
-                return "";
+                // 如果已经收到了部分请求，返回这部分请求
+                return request;
             } else {
                 // 发生错误
                 #ifdef _WIN32
                 int error = WSAGetLastError();
                 if (error == WSAEWOULDBLOCK) {
-                    // 非阻塞模式下暂时没有数据，跳出循环
+                    // 非阻塞模式下暂时没有数据，如果还没有找到头部，继续等待
+                    if (!headerFound) {
+                        continue;
+                    }
+                    // 如果已经找到头部，检查请求体是否完整
+                    if (contentLength > 0) {
+                        size_t bodyStart = request.find("\r\n\r\n") + 4;
+                        if (request.length() - bodyStart < contentLength) {
+                            // 请求体还没接收完，继续等待
+                            continue;
+                        }
+                    }
+                    // 请求体已接收完整，跳出循环
                     break;
                 }
                 #else
                 int error = errno;
                 if (error == EAGAIN || error == EWOULDBLOCK) {
-                    // 非阻塞模式下暂时没有数据，跳出循环
+                    // 非阻塞模式下暂时没有数据，如果还没有找到头部，继续等待
+                    if (!headerFound) {
+                        continue;
+                    }
+                    // 如果已经找到头部，检查请求体是否完整
+                    if (contentLength > 0) {
+                        size_t bodyStart = request.find("\r\n\r\n") + 4;
+                        if (request.length() - bodyStart < contentLength) {
+                            // 请求体还没接收完，继续等待
+                            continue;
+                        }
+                    }
+                    // 请求体已接收完整，跳出循环
                     break;
                 }
                 #endif
@@ -201,7 +226,7 @@ SOCKET createServerSocket(int port) {
     return serverSocket;
 }
 
-void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
+void handleClientConnection(SOCKET clientSocket) {
     // 接收完整的HTTP请求
     std::string request = receiveHttpRequest(clientSocket);
     if (request.empty()) {
@@ -215,7 +240,7 @@ void handleClientConnection(SOCKET clientSocket, const std::string& clientIP) {
     parseHttpRequest(request, method, path, body);
     
     // 处理HTTP请求
-    std::string response = handleHttpRequest(method, path, body, clientIP);
+    std::string response = handleHttpRequest(method, path, body);
 
     // 发送HTTP响应
     sendHttpResponse(clientSocket, response);

@@ -68,7 +68,7 @@ std::string generatePage(const std::string& username, const std::string& status 
     return page;
 }
 
-std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body, const std::string& clientIP) {
+std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body) {
     std::string response;
 
     if (method == "GET") {
@@ -126,7 +126,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 username = htmlEntityDecode(username);
                 
                 if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
-                    bool allowLogin = g_userManager.loginUser(username, password, clientIP);
+                    bool allowLogin = g_userManager.loginUser(username, password);
                     
                     if (allowLogin) {
                         // 对用户名进行URL编码
@@ -152,7 +152,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 username = htmlEntityDecode(username);
                 
                 if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
-                    bool registered = g_userManager.registerUser(username, password, clientIP);
+                    bool registered = g_userManager.registerUser(username, password);
                     
                     if (registered) {
                         // 注册成功，自动登录并跳转到聊天页面
@@ -175,8 +175,8 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 std::string to = parseFormData(body, "to");
                 std::string content = parseFormData(body, "content");
                 
-                // 验证发送者用户名是否有效且与IP匹配
-                bool validUser = g_userManager.isValidUser(from, clientIP);
+                // 验证发送者用户名是否存在
+                bool validUser = g_userManager.userExists(from);
                 
                 if (!from.empty() && !to.empty() && !content.empty() && validUser) {
                     // 检查消息长度

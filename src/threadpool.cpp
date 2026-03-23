@@ -36,10 +36,10 @@ void ThreadPool::stop() {
 }
 
 // 主线程调用这里：只负责把任务放进队列，立刻返回
-void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
+void ThreadPool::addTask(SOCKET socket) {
     {
         std::lock_guard<std::mutex> lock(m_queueMutex);
-        m_taskQueue.push({socket, ip});
+        m_taskQueue.push({socket});
     }
     m_cv.notify_one(); // 唤醒一个工作线程
 }
@@ -65,7 +65,7 @@ void ThreadPool::workerLoop() {
         } // 锁在这里释放，处理任务时不持有锁
         
         // 处理任务（锁外执行）
-        handleClientConnection(task.socket, task.ip);
+        handleClientConnection(task.socket);
     }
 }
 

@@ -105,9 +105,9 @@ int main() {
         
         // 将所有客户端套接字添加到readSet
         {  
-            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-            for (auto& pair : g_clientIPMap) {
-                FD_SET(pair.first, &readSet);
+            std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+            for (SOCKET clientSocket : g_clientSocketSet) {
+                FD_SET(clientSocket, &readSet);
             }
         }
         
@@ -157,28 +157,25 @@ int main() {
                     continue;
                 }
                 
-                std::string clientIP = inet_ntoa(clientAddr.sin_addr);
-                
-                // 存储客户端套接字和IP
+                // 存储客户端套接字
                 {  
-                    std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-                    g_clientIPMap[clientSocket] = clientIP;
+                    std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+                    g_clientSocketSet.insert(clientSocket);
                 }
             }
         }
         
         // 检查客户端套接字是否有数据
         {  
-            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-            for (auto it = g_clientIPMap.begin(); it != g_clientIPMap.end();) {
-                SOCKET clientSocket = it->first;
-                std::string clientIP = it->second;
+            std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+            for (auto it = g_clientSocketSet.begin(); it != g_clientSocketSet.end();) {
+                SOCKET clientSocket = *it;
                 
                 if (FD_ISSET(clientSocket, &readSet)) {
                     // 客户端有数据，交给线程池处理
-                    g_threadPool.addTask(clientSocket, clientIP);
-                    // 从列表中移除，因为线程处理完后会关闭
-                    it = g_clientIPMap.erase(it);
+                    g_threadPool.addTask(clientSocket);
+                    // 从集合中移除，因为线程处理完后会关闭
+                    it = g_clientSocketSet.erase(it);
                 } else {
                     ++it;
                 }
@@ -247,25 +244,21 @@ int main() {
                     }
                     
                     // 处理新连接
-                    char ipBuffer[INET_ADDRSTRLEN] = {0};
-                    inet_ntop(AF_INET, &clientAddr.sin_addr, ipBuffer, sizeof(ipBuffer));
-                    std::string clientIP = ipBuffer;
-                    
-                    // 存fd->ip的映射
+                    // 存客户端套接字
                     {
-                        std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-                        g_clientIPMap[clientSocket] = clientIP;
+                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+                        g_clientSocketSet.insert(clientSocket);
                     }
                     
                     // 设置clientSocket为非阻塞
                     int client_flags = fcntl(clientSocket, F_GETFL, 0);
                     if (fcntl(clientSocket, F_SETFL, client_flags | O_NONBLOCK) == -1) {
                         std::cerr << "fcntl client failed: " << strerror(errno) << std::endl;
-                        // 清理IP映射
-                        {
-                            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-                            g_clientIPMap.erase(clientSocket);
-                        }
+                        // 清理客户端套接字
+                    {
+                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+                        g_clientSocketSet.erase(clientSocket);
+                    }
                         closesocket(clientSocket);
                         continue;
                     }
@@ -276,11 +269,11 @@ int main() {
                     client_event.data.fd = clientSocket;
                     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clientSocket, &client_event) == -1) {
                         std::cerr << "epoll_ctl add client failed: " << strerror(errno) << std::endl;
-                        // 清理IP映射
-                        {
-                            std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-                            g_clientIPMap.erase(clientSocket);
-                        }
+                        // 清理客户端套接字
+                    {
+                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+                        g_clientSocketSet.erase(clientSocket);
+                    }
                         closesocket(clientSocket);
                     }
                 }
@@ -293,16 +286,11 @@ int main() {
                 
                 SOCKET clientSocket = events[i].data.fd;
                 // 将clientSocket交给线程池处理
-                std::string clientIP;
                 {
-                    std::lock_guard<std::mutex> lock(g_clientIPMapMutex);
-                    auto it = g_clientIPMap.find(clientSocket);
-                    if (it != g_clientIPMap.end()) {
-                        clientIP = it->second;
-                        g_clientIPMap.erase(it);
-                    }
+                    std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+                    g_clientSocketSet.erase(clientSocket);
                 }
-                g_threadPool.addTask(clientSocket, clientIP);
+                g_threadPool.addTask(clientSocket);
                 
             }
         }
