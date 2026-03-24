@@ -1,3 +1,9 @@
+/*
+ * main.cpp
+ * 聊天服务器主文件
+ * 功能：初始化服务器，处理客户端连接，管理线程池
+ */
+
 #include <iostream>
 #include <thread>
 #include <string>
@@ -7,6 +13,7 @@
 #include "include/database.h"
 #include "include/threadpool.h"
 #include "include/config.h"
+
 // 用于密码输入的头文件
 #ifdef _WIN32
 #include <windows.h>
@@ -17,7 +24,10 @@
 #include <fcntl.h> // 包含fcntl.h
 #endif
 
-
+/**
+ * 控制台输入线程函数
+ * 功能：监听用户输入，处理退出命令
+ */
 void consoleInputThread() {
     std::string input;
     while (NetworkManager::getInstance().getRunning()) {
@@ -34,6 +44,11 @@ void consoleInputThread() {
     }
 }
 
+/**
+ * 主函数
+ * 功能：初始化服务器，处理客户端连接
+ * 返回值：0表示成功，1表示失败
+ */
 int main() {
     // 初始化网络
     initializeNetwork();
@@ -43,12 +58,13 @@ int main() {
     std::string dbUser = ConfigManager::getInstance().get("db_user", "root");
     std::string dbName = ConfigManager::getInstance().get("db_name", "chatroom");
     
-    // Input database password
+    // 输入数据库密码
     std::string dbPassword;
     std::cout << "Please enter database password: ";
-    // Hide password input
+    
+    // 隐藏密码输入
     #ifdef _WIN32
-    // Windows platform
+    // Windows平台
     HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
     DWORD mode = 0;
     GetConsoleMode(hStdin, &mode);
@@ -56,7 +72,7 @@ int main() {
     std::getline(std::cin, dbPassword);
     SetConsoleMode(hStdin, mode);
     #else
-    // Linux/Unix platform
+    // Linux/Unix平台
     char* password = getpass("");
     dbPassword = password;
     #endif
@@ -96,8 +112,6 @@ int main() {
     // 主循环 - 处理新连接和客户端通信
     #ifdef _WIN32
     // Windows平台使用select
-
-    
     while (NetworkManager::getInstance().getRunning()) {
         fd_set readSet;
         FD_ZERO(&readSet);
@@ -111,10 +125,12 @@ int main() {
             }
         }
         
+        // 设置超时时间为1秒
         timeval timeout;
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
         
+        // 调用select检查可读事件
         int result = select(0, &readSet, nullptr, nullptr, &timeout);
         if (result < 0) {
             int error = WSAGetLastError();
@@ -122,6 +138,7 @@ int main() {
             continue;
         }
         
+        // 超时，继续循环
         if (result == 0) continue;
         
         // 检查服务器套接字是否有新连接
@@ -191,15 +208,19 @@ int main() {
         return 1;
     }
     
+    // 创建epoll实例
     int epoll_fd = epoll_create1(0);
     if (epoll_fd == -1) {
         std::cerr << "epoll_create1 failed: " << strerror(errno) << std::endl;
         return 1;
     }
+    
+    // 将epoll文件描述符保存到NetworkManager
     #ifdef __linux__
     NetworkManager::getInstance().setEpollFd(epoll_fd); // 赋值给NetworkManager，让handleClientConnection能访问
     #endif
 
+    // 注册服务器Socket到epoll
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLET; // 边缘触发
     event.data.fd = serverSocket;
@@ -216,8 +237,10 @@ int main() {
     const int MAX_EVENTS = 1024; // 增大事件数组大小，支持更多并发
     struct epoll_event events[MAX_EVENTS];
 
+    // 主循环
     while (NetworkManager::getInstance().getRunning()) {
-        int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000); // 1秒超时
+        // 等待事件，超时时间1秒
+        int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
         if (num_events == -1) {
             if (errno == EINTR) {
                 continue;
@@ -226,6 +249,7 @@ int main() {
             break;
         }
 
+        // 处理所有事件
         for (int i = 0; i < num_events; i++) {
             // 区分serverSocket和clientSocket
             if (events[i].data.fd == serverSocket) {
@@ -248,7 +272,7 @@ int main() {
                     }
                     
                     // 处理新连接
-                    // 存客户端套接字
+                    // 存储客户端套接字
                     {
                         std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
                         NetworkManager::getInstance().getClientSocketSet().insert(clientSocket);
@@ -259,10 +283,10 @@ int main() {
                     if (fcntl(clientSocket, F_SETFL, client_flags | O_NONBLOCK) == -1) {
                         std::cerr << "fcntl client failed: " << strerror(errno) << std::endl;
                         // 清理客户端套接字
-                    {
-                        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
-                        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
-                    }
+                        {
+                            std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                            NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
+                        }
                         closesocket(clientSocket);
                         continue;
                     }
@@ -274,10 +298,10 @@ int main() {
                     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clientSocket, &client_event) == -1) {
                         std::cerr << "epoll_ctl add client failed: " << strerror(errno) << std::endl;
                         // 清理客户端套接字
-                    {
-                        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
-                        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
-                    }
+                        {
+                            std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                            NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
+                        }
                         closesocket(clientSocket);
                     }
                 }
@@ -314,9 +338,11 @@ int main() {
         NetworkManager::getInstance().getServerSocket() = INVALID_SOCKET;
     }
     
+    // 清理Windows网络资源
 #ifdef _WIN32
     WSACleanup();
 #endif
+    
     std::cout << "Server closed" << std::endl;
     return 0;
 }

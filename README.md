@@ -10,6 +10,8 @@
 - **线程池解耦连接与业务**：生产者 - 消费者模式实现线程池，主线程负责接收连接，工作线程负责处理 HTTP 请求，避免频繁创建 / 销毁线程的性能开销
 - **安全与鲁棒性设计**：数据库密码无回显输入、参数化查询防 SQL 注入、HTML 转义防 XSS、全链路错误处理与资源清理
 - **工程化能力**：CMake 跨平台构建、配置文件动态配置、模块化代码分层（网络 / 数据库 / 业务 / 工具）
+- **单例模式优化**：所有管理器类均采用懒汉式单例模式，确保线程安全和资源合理使用
+- **完整的中文注释**：所有代码文件均添加了详细的中文注释，提高代码可读性和可维护性
 
 ## 功能特性
 
@@ -25,6 +27,8 @@
 - **实时消息更新**：使用短轮询技术实现消息实时更新
 - **智能线程数配置**：根据CPU核心数自动调整线程数
 - **支持中文**：支持中文用户名和消息内容
+- **单例模式**：所有管理器类均采用懒汉式单例模式，确保线程安全
+- **详细的中文注释**：所有代码文件均添加了详细的中文注释，提高代码可读性
 
 ## 技术栈
 
@@ -34,6 +38,7 @@
 - **网络**：Socket编程, HTTP协议
 - **并发处理**：线程池（生产者-消费者模式）
 - **实时通信**：短轮询（Short Polling）
+- **设计模式**：单例模式（懒汉式）
 
 ## 项目结构
 
@@ -176,32 +181,74 @@ chatroom.exe  # Windows
 - **跨平台Socket**：通过条件编译实现Windows和Linux平台的Socket兼容
 - **HTTP服务器**：自定义实现简单的HTTP服务器，支持GET和POST请求
 - **非阻塞监听Socket**：Windows/Linux 的 serverSocket 均设为非阻塞，配合循环 accept 一次性取完所有待处理连接，避免高并发下的连接漏处理
-- **客户端Socket适配**：Windows 下 clientSocket 改回阻塞模式，兼容现有线程池的 recv/send 逻辑；Linux 下 clientSocket 设为非阻塞，并使用 EPOLLONESHOT 确保每个事件只被一个线程处理（可优化方向：补充循环读 / 写逻辑）
+- **客户端Socket适配**：Windows 下 clientSocket 改回阻塞模式，兼容现有线程池的 recv/send 逻辑；Linux 下 clientSocket 设为非阻塞，并使用 EPOLLONESHOT 确保每个事件只被一个线程处理
 - **循环Accept**：实现循环accept处理所有待处理连接
 - **优雅关闭机制**：控制台指令（ exit/quit/stop ）触发服务退出，全链路资源清理（套接字、epoll 实例、线程池、数据库连接）
-- **双重检查服务状态**： accept 前二次检查 g_running ，避免对已关闭的 Socket 操作
+- **双重检查服务状态**： accept 前二次检查服务状态，避免对已关闭的 Socket 操作
 - **超时机制**： select/epoll_wait 设置 1 秒超时，保证服务能及时响应退出指令
 
-### 2. 线程池实现
+### 2. 单例模式实现
+
+所有管理器类均采用懒汉式单例模式，确保线程安全和资源合理使用：
+
+```cpp
+// NetworkManager单例实现
+NetworkManager& NetworkManager::getInstance() {
+    static NetworkManager instance;
+    return instance;
+}
+
+// ConfigManager单例实现
+ConfigManager& ConfigManager::getInstance(const std::string& file) {
+    static ConfigManager instance(file);
+    return instance;
+}
+
+// DatabaseManager单例实现
+DatabaseManager& DatabaseManager::getInstance() {
+    static DatabaseManager instance;
+    return instance;
+}
+
+// ThreadPool单例实现
+ThreadPool& ThreadPool::getInstance(int numThreads) {
+    static ThreadPool instance(numThreads);
+    return instance;
+}
+
+// MessageManager单例实现
+MessageManager& MessageManager::getInstance() {
+    static MessageManager instance;
+    return instance;
+}
+
+// UserManager单例实现
+UserManager& UserManager::getInstance() {
+    static UserManager instance;
+    return instance;
+}
+```
+
+### 3. 线程池实现
 
 - **智能线程数配置**：根据CPU核心数自动调整线程数（核心数×2）
 - **任务队列**：使用线程安全的队列存储客户端连接
 - **条件变量**：实现工作线程的高效唤醒机制
 - **线程安全**：使用互斥锁和原子变量确保线程安全
 
-### 3. 消息更新机制
+### 4. 消息更新机制
 
 - **短轮询**：前端JavaScript每1秒向服务器发送一次请求，获取最新消息
 - **API接口**：`/api/messages`接口返回JSON格式的消息数据
 - **消息过滤**：只返回当前用户的消息，确保消息的私密性
 
-### 4. 安全措施
+### 5. 安全措施
 
 - **HTML转义**：对用户输入进行HTML转义，防止XSS攻击
 - **输入验证**：验证用户名和密码的合法性
 - **SQL注入防护**：使用字符串转义处理参数，防止SQL注入攻击
 
-### 5. 性能优化
+### 6. 性能优化
 
 - **线程池**：使用线程池处理并发连接，提高性能
 - **数据库索引**：在用户名字段上创建索引，提高查询速度
@@ -213,31 +260,35 @@ chatroom.exe  # Windows
 
 ### 1. 主循环（main.cpp）
 
-核心逻辑：非阻塞监听 Socket + 循环 accept  + 线程池分发
+核心逻辑：非阻塞监听 Socket + 循环 accept  + 线程池分发，使用 NetworkManager 单例管理网络相关全局变量
 
 ```cpp
-// Windows平台循环accept，一次性取完所有待处理连接
-while (true) {
-    SOCKET clientSocket = accept(serverSocket, (sockaddr*)&clientAddr, &clientAddrSize);
-    if (clientSocket == INVALID_SOCKET) {
-        int error = WSAGetLastError();
-        if (error == WSAEWOULDBLOCK) break; // 无更多连接，正常退出
-        // 真正的错误处理...
+// 主循环 - 处理新连接和客户端通信
+#ifdef _WIN32
+// Windows平台使用select
+while (NetworkManager::getInstance().getRunning()) {
+    fd_set readSet;
+    FD_ZERO(&readSet);
+    FD_SET(serverSocket, &readSet);
+    
+    // 将所有客户端套接字添加到readSet
+    {  
+        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+        for (SOCKET clientSocket : NetworkManager::getInstance().getClientSocketSet()) {
+            FD_SET(clientSocket, &readSet);
+        }
     }
-    // 设置clientSocket为非阻塞模式
-    u_long nonBlockMode = 1; // 1=非阻塞
-    if (ioctlsocket(clientSocket, FIONBIO, &nonBlockMode) == SOCKET_ERROR) {
-        std::cerr << "Set clientSocket non-block failed: " << WSAGetLastError() << std::endl;
-        closesocket(clientSocket);
-        continue;
-    }
-    // 存储客户端套接字并加入线程池
-    {
-        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-        g_clientSocketSet.insert(clientSocket);
-    }
-    g_threadPool.addTask(clientSocket);
+    
+    // 设置超时时间为1秒
+    timeval timeout;
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    
+    // 调用select检查可读事件
+    int result = select(0, &readSet, nullptr, nullptr, &timeout);
+    // 处理结果...
 }
+#endif
 ```
 
 ### 2. 短轮询实现（chat.html）
@@ -275,25 +326,21 @@ void ThreadPool::workerLoop() {
         {
             std::unique_lock<std::mutex> lock(m_queueMutex);
             // 等待任务或退出信号
-            m_cv.wait(lock, [this] {  
-                return !m_taskQueue.empty() || !m_running;  
-            });
-            if (!m_running && m_taskQueue.empty()) return;
+            m_cv.wait(lock, [this] { return !m_taskQueue.empty() || !m_running; });
+            if (!m_running) return;
             // 取出任务
             task = m_taskQueue.front();
             m_taskQueue.pop();
-        } // 锁外执行任务
-        handleClientConnection(task.socket, task.ip);
+        }
+        handleClientConnection(task.socket);
     }
 }
 
 // 添加任务到线程池
-void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
-    { 
-        std::lock_guard<std::mutex> lock(m_queueMutex);
-        m_taskQueue.push({socket, ip});
-    }
-    m_cv.notify_one(); // 唤醒一个工作线程
+void ThreadPool::addTask(SOCKET socket) {
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    m_taskQueue.push({socket});
+    m_cv.notify_one();
 }
 ```
 
@@ -304,21 +351,19 @@ void ThreadPool::addTask(SOCKET socket, const std::string& ip) {
 ```cpp
 // 存储消息
 void MessageManager::addMessage(const std::string& from, const std::string& to, const std::string& content) {
-    std::lock_guard<std::mutex> lock(messageMutex);
-    // 参数化查询防SQL注入
+    // 使用预处理语句插入新消息
     std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES (?, ?, ?)";
     std::vector<std::string> insertParams = {from, to, content};
-    g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
+    DatabaseManager::getInstance().executePreparedUpdate(insertQuery, insertParams);
 }
 
 // 获取用户消息
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
-    std::lock_guard<std::mutex> lock(messageMutex);
     std::vector<Message> messages;
     // 查询用户的所有消息
     std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = ? ORDER BY timestamp ASC";
     std::vector<std::string> queryParams = {username};
-    MYSQL_RES* result = g_databaseManager.executePreparedQuery(query, queryParams);
+    MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(query, queryParams);
     // 处理查询结果...
     return messages;
 }
@@ -351,11 +396,15 @@ db_name=chatroom
 
 ### 服务退出卡死问题
 - **难点**：阻塞模式下， select 返回可读但 accept 前客户端断开， accept 会一直阻塞，无法响应退出指令
-- **解决方案**： serverSocket 设为非阻塞， select/epoll_wait 设置 1 秒超时， accept 前二次检查 g_running ，保证服务能及时退出
+- **解决方案**： serverSocket 设为非阻塞， select/epoll_wait 设置 1 秒超时， accept 前二次检查服务状态，保证服务能及时退出
 
 ### 跨平台 Socket API 差异
 - **难点**：Windows 用 ioctlsocket 设置非阻塞，Linux 用 fcntl ；Windows 错误码用 WSAGetLastError ，Linux 用 errno
 - **解决方案**：通过条件编译（ #ifdef _WIN32 ）封装跨平台兼容代码，统一接口
+
+### 全局变量管理
+- **难点**：全局变量容易被意外修改，导致服务器崩溃
+- **解决方案**：使用单例模式封装全局变量，提供安全的访问方法，确保线程安全
 
 ## 生产环境优化方向
 

@@ -1,3 +1,9 @@
+/*
+ * web.cpp
+ * Web相关功能的实现文件
+ * 功能：实现HTTP请求处理、页面生成和消息管理
+ */
+
 #include "../include/web.h"
 #include "../include/utils.h"
 #include "../include/user.h"
@@ -7,11 +13,16 @@
 #include <thread>
 #include <chrono>
 
-// 读取文件内容的辅助函数
+/**
+ * 读取文件内容的辅助函数
+ * 功能：读取指定文件的内容
+ * 参数：filename - 文件路径
+ * 返回值：文件内容
+ */
 std::string readFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Cannot open file: " << filename << std::endl;
+        std::cerr << "Failed to open file: " << filename << std::endl;
         return "";
     }
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -23,7 +34,12 @@ std::string readFile(const std::string& filename) {
 const std::string htmlLogin = readFile("./html/login.html");
 const std::string htmlChat = readFile("./html/chat.html");
 
-// 生成消息JSON的辅助函数
+/**
+ * 生成消息JSON的辅助函数
+ * 功能：将消息列表转换为JSON格式
+ * 参数：messages - 消息列表
+ * 返回值：JSON格式的消息字符串
+ */
 std::string generateMessagesJson(const std::vector<Message>& messages) {
     std::string json = "{\"messages\": [";
     bool first = true;
@@ -36,7 +52,14 @@ std::string generateMessagesJson(const std::vector<Message>& messages) {
     return json;
 }
 
-// 生成页面的辅助函数（简化版）
+/**
+ * 生成页面的辅助函数
+ * 功能：生成聊天页面，替换占位符
+ * 参数：username - 用户名
+ *       status - 状态信息
+ *       error - 错误信息
+ * 返回值：生成的HTML页面
+ */
 std::string generatePage(const std::string& username, const std::string& status = "", const std::string& error = "") {
     std::string page = htmlChat;
     
@@ -68,6 +91,14 @@ std::string generatePage(const std::string& username, const std::string& status 
     return page;
 }
 
+/**
+ * 处理HTTP请求
+ * 功能：根据HTTP请求的方法、路径和正文生成响应
+ * 参数：method - HTTP方法（GET、POST等）
+ *       path - 请求路径
+ *       body - 请求正文
+ * 返回值：HTTP响应
+ */
 std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body) {
     std::string response;
 
@@ -141,7 +172,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                     response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters");
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters");
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters ");
             }
         } else if (path == "/register") {
             // 处理注册
