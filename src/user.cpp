@@ -1,12 +1,19 @@
 #include "../include/user.h"
 #include "../include/database.h"
+#include <iostream>
+
+UserManager::UserManager() {
+}
+
+UserManager::~UserManager() {
+}
 
 bool UserManager::registerUser(const std::string& username, const std::string& password) {
     
     // Check if user already exists using prepared statement
     std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
     std::vector<std::string> checkParams = {username};
-    MYSQL_RES* result = g_databaseManager.executePreparedQuery(checkQuery, checkParams);
+    MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(checkQuery, checkParams);
     if (result) {
         MYSQL_ROW row = mysql_fetch_row(result);
         if (row && atoi(row[0]) > 0) {
@@ -20,7 +27,7 @@ bool UserManager::registerUser(const std::string& username, const std::string& p
     // Insert new user using prepared statement
     std::string insertQuery = "INSERT INTO users (username, password) VALUES (?, ?)";
     std::vector<std::string> insertParams = {username, password};
-    int rowsAffected = g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
+    int rowsAffected = DatabaseManager::getInstance().executePreparedUpdate(insertQuery, insertParams);
     return rowsAffected > 0;
 }
 
@@ -29,7 +36,7 @@ bool UserManager::loginUser(const std::string& username, const std::string& pass
     // Validate username and password using prepared statement
     std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = ? AND password = ?";
     std::vector<std::string> checkParams = {username, password};
-    MYSQL_RES* result = g_databaseManager.executePreparedQuery(checkQuery, checkParams);
+    MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(checkQuery, checkParams);
     if (result) {
         MYSQL_ROW row = mysql_fetch_row(result);
         if (row && atoi(row[0]) > 0) {
@@ -48,7 +55,7 @@ bool UserManager::userExists(const std::string& username) {
     // Check if user exists using prepared statement
     std::string checkQuery = "SELECT COUNT(*) FROM users WHERE username = ?";
     std::vector<std::string> checkParams = {username};
-    MYSQL_RES* result = g_databaseManager.executePreparedQuery(checkQuery, checkParams);
+    MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(checkQuery, checkParams);
     if (result) {
         MYSQL_ROW row = mysql_fetch_row(result);
         bool exists = row && atoi(row[0]) > 0;
@@ -59,4 +66,8 @@ bool UserManager::userExists(const std::string& username) {
 }
 
 // Global user manager instance
-UserManager g_userManager;
+// 静态方法获取单例实例
+UserManager& UserManager::getInstance() {
+    static UserManager instance;
+    return instance;
+}

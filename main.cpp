@@ -39,9 +39,9 @@ int main() {
     initializeNetwork();
     
     // 从配置文件读取数据库配置
-    std::string dbHost = g_configManager.get("db_host", "localhost");
-    std::string dbUser = g_configManager.get("db_user", "root");
-    std::string dbName = g_configManager.get("db_name", "chatroom");
+    std::string dbHost = ConfigManager::getInstance().get("db_host", "localhost");
+    std::string dbUser = ConfigManager::getInstance().get("db_user", "root");
+    std::string dbName = ConfigManager::getInstance().get("db_name", "chatroom");
     
     // Input database password
     std::string dbPassword;
@@ -63,13 +63,13 @@ int main() {
     std::cout << std::endl;
     
     // 初始化数据库连接
-    if (!g_databaseManager.initialize(dbHost, dbUser, dbPassword, dbName)) {
+    if (!DatabaseManager::getInstance().initialize(dbHost, dbUser, dbPassword, dbName)) {
         std::cerr << "Database initialization failed, server cannot start" << std::endl;
         return 1;
     }
     
     // 从配置文件读取服务器端口
-    int serverPort = g_configManager.getInt("server_port", 8888);
+    int serverPort = ConfigManager::getInstance().getInt("server_port", 8888);
     
     // 创建服务器Socket
     SOCKET serverSocket = createServerSocket(serverPort);
@@ -87,7 +87,7 @@ int main() {
     #endif
     
     // 启动线程池
-    g_threadPool.start();
+    ThreadPool::getInstance(MAX_THREADS).start();
     
     // 启动控制台输入监听线程
     std::thread inputThread(consoleInputThread);
@@ -173,7 +173,7 @@ int main() {
                 
                 if (FD_ISSET(clientSocket, &readSet)) {
                     // 客户端有数据，交给线程池处理
-                    g_threadPool.addTask(clientSocket);
+                    ThreadPool::getInstance().addTask(clientSocket);
                     // 从集合中移除，因为线程处理完后会关闭
                     it = g_clientSocketSet.erase(it);
                 } else {
@@ -290,7 +290,7 @@ int main() {
                     std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
                     g_clientSocketSet.erase(clientSocket);
                 }
-                g_threadPool.addTask(clientSocket);
+                ThreadPool::getInstance().addTask(clientSocket);
                 
             }
         }

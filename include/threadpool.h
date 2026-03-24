@@ -16,14 +16,6 @@ struct Task {
 
 // 线程池类
 class ThreadPool {
-public:
-    ThreadPool(int numThreads = 10);
-    ~ThreadPool();
-    
-    void start();
-    void stop();
-    void addTask(SOCKET socket);
-    
 private:
     int m_numThreads;
     std::vector<std::thread> m_workers;
@@ -34,13 +26,26 @@ private:
     std::mutex m_queueMutex;
     std::condition_variable m_cv;
     
+    // 私有构造函数，防止外部实例化
+    ThreadPool(int numThreads = 10);
+    ~ThreadPool();
+    
+    // 禁止复制和赋值
+    ThreadPool(const ThreadPool&) = delete;
+    ThreadPool& operator=(const ThreadPool&) = delete;
+    
     void workerLoop();
+
+public:
+    void start();
+    void stop();
+    void addTask(SOCKET socket);
+    
+    // 静态方法获取单例实例
+    static ThreadPool& getInstance(int numThreads = 10);
 };
 
 // 全局变量，存储最大线程数
 extern const int MAX_THREADS;
-
-// 全局线程池实例
-extern ThreadPool g_threadPool;
 
 #endif // THREADPOOL_H

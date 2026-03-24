@@ -64,5 +64,8 @@ int ConfigManager::getInt(const std::string& key, int defaultValue) {
     return defaultValue;
 }
 
-// 全局配置管理器实例
-ConfigManager g_configManager("config.ini");
+// 静态方法获取单例实例
+ConfigManager& ConfigManager::getInstance(const std::string& file) {
+    static ConfigManager instance(file);
+    return instance;
+}

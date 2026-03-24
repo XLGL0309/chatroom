@@ -102,7 +102,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             }
             
             // 立即检查是否有新消息，不等待
-            auto messages = g_messageManager.getMessagesForUser(username);
+            auto messages = MessageManager::getInstance().getMessagesForUser(username);
             // 无论是否有新消息，都返回所有消息
             std::string json = generateMessagesJson(messages);
             // 确保返回正确的Content-Type和CORS头
@@ -126,7 +126,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 username = htmlEntityDecode(username);
                 
                 if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
-                    bool allowLogin = g_userManager.loginUser(username, password);
+                    bool allowLogin = UserManager::getInstance().loginUser(username, password);
                     
                     if (allowLogin) {
                         // 对用户名进行URL编码
@@ -152,7 +152,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 username = htmlEntityDecode(username);
                 
                 if (!username.empty() && !password.empty() && isValidUsername(username) && password.length() >= 6) {
-                    bool registered = g_userManager.registerUser(username, password);
+                    bool registered = UserManager::getInstance().registerUser(username, password);
                     
                     if (registered) {
                         // 注册成功，自动登录并跳转到聊天页面
@@ -176,7 +176,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 std::string content = parseFormData(body, "content");
                 
                 // 验证发送者用户名是否存在
-                bool validUser = g_userManager.userExists(from);
+                bool validUser = UserManager::getInstance().userExists(from);
                 
                 if (!from.empty() && !to.empty() && !content.empty() && validUser) {
                     // 检查消息长度
@@ -188,13 +188,13 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                         // 不能给自己发消息，返回错误页面
                         std::string errorPage = generatePage(from, "", "You cannot send messages to yourself");
                         response = createHttpResponse(200, "OK", "text/html", errorPage);
-                    } else if (!g_userManager.userExists(to)) {
+                    } else if (!UserManager::getInstance().userExists(to)) {
                         // 目标用户不存在，返回错误页面
                         std::string errorPage = generatePage(from, "", "User '" + to + "' does not exist");
                         response = createHttpResponse(200, "OK", "text/html", errorPage);
                     } else {
                         // 保存消息
-                        g_messageManager.addMessage(from, to, content);
+                        MessageManager::getInstance().addMessage(from, to, content);
                         
                         // 对用户名进行URL编码
                         std::string encodedFrom = urlEncode(from);

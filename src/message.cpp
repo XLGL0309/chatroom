@@ -27,11 +27,17 @@ char* strptime(const char* s, const char* f, struct tm* tm) {
 
 Message::Message() : timestamp(time(nullptr)) {}
 
+MessageManager::MessageManager() {
+}
+
+MessageManager::~MessageManager() {
+}
+
 void MessageManager::addMessage(const std::string& from, const std::string& to, const std::string& content) {
     // Insert new message using prepared statement
     std::string insertQuery = "INSERT INTO messages (from_user, to_user, content) VALUES (?, ?, ?)";
     std::vector<std::string> insertParams = {from, to, content};
-    g_databaseManager.executePreparedUpdate(insertQuery, insertParams);
+    DatabaseManager::getInstance().executePreparedUpdate(insertQuery, insertParams);
 }
 
 std::vector<Message> MessageManager::getMessagesForUser(const std::string& username) {
@@ -39,7 +45,7 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
     // Query all messages for user (expired messages are cleaned by database event)
     std::string query = "SELECT from_user, to_user, content, timestamp FROM messages WHERE to_user = ? ORDER BY timestamp ASC";
     std::vector<std::string> queryParams = {username};
-    MYSQL_RES* result = g_databaseManager.executePreparedQuery(query, queryParams);
+    MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(query, queryParams);
     if (result) {
         MYSQL_ROW row;
         while ((row = mysql_fetch_row(result)) != nullptr) {
@@ -68,7 +74,7 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
 
 void MessageManager::cleanExpiredMessages() {
     // Clean all expired messages (older than 24 hours)
-    g_databaseManager.executePreparedUpdate(
+    DatabaseManager::getInstance().executePreparedUpdate(
         "DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)",
         {}
     );
@@ -78,8 +84,12 @@ void MessageManager::cleanExpiredMessagesForUser(const std::string& username) {
     // Clean expired messages for specific user (older than 24 hours) using prepared statement
     std::string deleteQuery = "DELETE FROM messages WHERE to_user = ? AND timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
     std::vector<std::string> deleteParams = {username};
-    g_databaseManager.executePreparedUpdate(deleteQuery, deleteParams);
+    DatabaseManager::getInstance().executePreparedUpdate(deleteQuery, deleteParams);
 }
 
 // 全局消息管理器实例
-MessageManager g_messageManager;
+// 静态方法获取单例实例
+MessageManager& MessageManager::getInstance() {
+    static MessageManager instance;
+    return instance;
+}

@@ -79,5 +79,8 @@ const int MAX_THREADS = []() -> int {
     return baseThreads * 2;
 }();
 
-// 全局实例
-ThreadPool g_threadPool(MAX_THREADS); // 使用硬件支持的最大线程数
+// 静态方法获取单例实例
+ThreadPool& ThreadPool::getInstance(int numThreads) {
+    static ThreadPool instance(numThreads);
+    return instance;
+}

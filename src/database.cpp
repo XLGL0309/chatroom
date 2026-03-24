@@ -113,5 +113,8 @@ bool DatabaseManager::isConnected() const {
     return connection != nullptr;
 }
 
-// 全局数据库管理器实例
-DatabaseManager g_databaseManager;
+// 静态方法获取单例实例
+DatabaseManager& DatabaseManager::getInstance() {
+    static DatabaseManager instance;
+    return instance;
+}

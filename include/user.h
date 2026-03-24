@@ -5,21 +5,23 @@
 #include <map>
 #include <mutex>
 
-struct User {
-    std::string username;
-    std::string password;
-};
-
 class UserManager {
 private:
+    // 私有构造函数，防止外部实例化
+    UserManager();
+    ~UserManager();
+    
+    // 禁止复制和赋值
+    UserManager(const UserManager&) = delete;
+    UserManager& operator=(const UserManager&) = delete;
 
 public:
     bool registerUser(const std::string& username, const std::string& password);
     bool loginUser(const std::string& username, const std::string& password);
     bool userExists(const std::string& username);
+    
+    // 静态方法获取单例实例
+    static UserManager& getInstance();
 };
-
-// 全局用户管理器实例
-extern UserManager g_userManager;
 
 #endif // USER_H

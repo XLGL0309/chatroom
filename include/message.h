@@ -16,14 +16,23 @@ struct Message {
 };
 
 class MessageManager {
+private:
+    // 私有构造函数，防止外部实例化
+    MessageManager();
+    ~MessageManager();
+    
+    // 禁止复制和赋值
+    MessageManager(const MessageManager&) = delete;
+    MessageManager& operator=(const MessageManager&) = delete;
+
 public:
     void addMessage(const std::string& from, const std::string& to, const std::string& content);
     std::vector<Message> getMessagesForUser(const std::string& username);
     void cleanExpiredMessages();
     void cleanExpiredMessagesForUser(const std::string& username);
+    
+    // 静态方法获取单例实例
+    static MessageManager& getInstance();
 };
-
-// 全局消息管理器实例
-extern MessageManager g_messageManager;
 
 #endif // MESSAGE_H
