@@ -199,8 +199,7 @@ chatroom.exe  # Windows
 
 - **HTML转义**：对用户输入进行HTML转义，防止XSS攻击
 - **输入验证**：验证用户名和密码的合法性
-- **IP绑定**：用户登录后绑定IP地址，防止账号被盗用
-- **SQL注入防护**：使用参数化查询防止SQL注入攻击
+- **SQL注入防护**：使用字符串转义处理参数，防止SQL注入攻击
 
 ### 5. 性能优化
 
@@ -225,10 +224,19 @@ while (true) {
         if (error == WSAEWOULDBLOCK) break; // 无更多连接，正常退出
         // 真正的错误处理...
     }
-    // clientSocket改回阻塞模式，加入线程池
-    u_long blockMode = 0; // 0=阻塞模式
-    ioctlsocket(clientSocket, FIONBIO, &blockMode);
-    g_threadPool.addTask(clientSocket, clientIP);
+    // 设置clientSocket为非阻塞模式
+    u_long nonBlockMode = 1; // 1=非阻塞
+    if (ioctlsocket(clientSocket, FIONBIO, &nonBlockMode) == SOCKET_ERROR) {
+        std::cerr << "Set clientSocket non-block failed: " << WSAGetLastError() << std::endl;
+        closesocket(clientSocket);
+        continue;
+    }
+    // 存储客户端套接字并加入线程池
+    {
+        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
+        g_clientSocketSet.insert(clientSocket);
+    }
+    g_threadPool.addTask(clientSocket);
 }
 ```
 
