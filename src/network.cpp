@@ -8,22 +8,51 @@
 #include <ws2tcpip.h> // 为Windows提供inet_ntop
 #endif
 
-std::atomic<bool> g_running(true);
-SOCKET g_serverSocket = INVALID_SOCKET;
+// NetworkManager实现
+NetworkManager& NetworkManager::getInstance() {
+    static NetworkManager instance;
+    return instance;
+}
+
+std::unordered_set<SOCKET>& NetworkManager::getClientSocketSet() {
+    return clientSocketSet;
+}
+
+std::mutex& NetworkManager::getClientSocketSetMutex() {
+    return clientSocketSetMutex;
+}
+
+std::atomic<bool>& NetworkManager::getRunning() {
+    return running;
+}
+
+void NetworkManager::setRunning(bool value) {
+    running = value;
+}
+
+SOCKET& NetworkManager::getServerSocket() {
+    return serverSocket;
+}
+
+void NetworkManager::setServerSocket(SOCKET socket) {
+    serverSocket = socket;
+}
 
 #ifdef __linux__
-int g_epoll_fd = -1; // 定义全局epoll实例
-#endif
+int NetworkManager::getEpollFd() {
+    return epoll_fd;
+}
 
-// 跨平台的客户端Socket集合
-std::unordered_set<SOCKET> g_clientSocketSet; // 定义客户端Socket集合
-std::mutex g_clientSocketSetMutex; // 定义客户端Socket集合的互斥锁
+void NetworkManager::setEpollFd(int fd) {
+    epoll_fd = fd;
+}
+#endif
 
 // 辅助函数：清理客户端socket（从epoll移除并关闭）
 static void cleanupClientSocket(SOCKET clientSocket) {
 #ifdef __linux__
-    if (g_epoll_fd != -1) {
-        if (epoll_ctl(g_epoll_fd, EPOLL_CTL_DEL, clientSocket, nullptr) == -1) {
+    if (NetworkManager::getInstance().getEpollFd() != -1) {
+        if (epoll_ctl(NetworkManager::getInstance().getEpollFd(), EPOLL_CTL_DEL, clientSocket, nullptr) == -1) {
             std::cerr << "epoll_ctl del failed: " << strerror(errno) << std::endl;
         }
     }
@@ -215,7 +244,7 @@ SOCKET createServerSocket(int port) {
         exit(1);
     }
 
-    g_serverSocket = serverSocket;
+    NetworkManager::getInstance().setServerSocket(serverSocket);
     std::cout << "Server started, port: " << port << std::endl;
     // 替换 inet_ntoa 为 inet_ntop
     char ipBuffer[INET_ADDRSTRLEN] = {0};

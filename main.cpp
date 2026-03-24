@@ -20,14 +20,14 @@
 
 void consoleInputThread() {
     std::string input;
-    while (g_running) {
+    while (NetworkManager::getInstance().getRunning()) {
         std::getline(std::cin, input);
         if (input == "exit" || input == "quit" || input == "stop") {
             std::cout << "Shutting down server..." << std::endl;
-            g_running = false;
-            if (g_serverSocket != INVALID_SOCKET) {
-                closesocket(g_serverSocket);
-                g_serverSocket = INVALID_SOCKET;
+            NetworkManager::getInstance().setRunning(false);
+            if (NetworkManager::getInstance().getServerSocket() != INVALID_SOCKET) {
+                closesocket(NetworkManager::getInstance().getServerSocket());
+                NetworkManager::getInstance().setServerSocket(INVALID_SOCKET);
             }
             break;
         }
@@ -73,7 +73,7 @@ int main() {
     
     // 创建服务器Socket
     SOCKET serverSocket = createServerSocket(serverPort);
-    g_serverSocket = serverSocket; // 设置全局服务器套接字
+    NetworkManager::getInstance().setServerSocket(serverSocket); // 设置服务器套接字
     
     // 设置serverSocket为非阻塞
     #ifdef _WIN32
@@ -98,15 +98,15 @@ int main() {
     // Windows平台使用select
 
     
-    while (g_running) {
+    while (NetworkManager::getInstance().getRunning()) {
         fd_set readSet;
         FD_ZERO(&readSet);
         FD_SET(serverSocket, &readSet);
         
         // 将所有客户端套接字添加到readSet
         {  
-            std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-            for (SOCKET clientSocket : g_clientSocketSet) {
+            std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+            for (SOCKET clientSocket : NetworkManager::getInstance().getClientSocketSet()) {
                 FD_SET(clientSocket, &readSet);
             }
         }
@@ -127,7 +127,7 @@ int main() {
         // 检查服务器套接字是否有新连接
         if (FD_ISSET(serverSocket, &readSet)) {
             // 双重检查：先确认服务仍在运行，再accept
-            if (!g_running) {
+            if (!NetworkManager::getInstance().getRunning()) {
                 continue;
             }
             
@@ -159,23 +159,23 @@ int main() {
                 
                 // 存储客户端套接字
                 {  
-                    std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-                    g_clientSocketSet.insert(clientSocket);
+                    std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                    NetworkManager::getInstance().getClientSocketSet().insert(clientSocket);
                 }
             }
         }
         
         // 检查客户端套接字是否有数据
         {  
-            std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-            for (auto it = g_clientSocketSet.begin(); it != g_clientSocketSet.end();) {
+            std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+            for (auto it = NetworkManager::getInstance().getClientSocketSet().begin(); it != NetworkManager::getInstance().getClientSocketSet().end();) {
                 SOCKET clientSocket = *it;
                 
                 if (FD_ISSET(clientSocket, &readSet)) {
                     // 客户端有数据，交给线程池处理
                     ThreadPool::getInstance().addTask(clientSocket);
                     // 从集合中移除，因为线程处理完后会关闭
-                    it = g_clientSocketSet.erase(it);
+                    it = NetworkManager::getInstance().getClientSocketSet().erase(it);
                 } else {
                     ++it;
                 }
@@ -196,7 +196,9 @@ int main() {
         std::cerr << "epoll_create1 failed: " << strerror(errno) << std::endl;
         return 1;
     }
-    g_epoll_fd = epoll_fd; // 赋值给全局变量，让handleClientConnection能访问
+    #ifdef __linux__
+    NetworkManager::getInstance().setEpollFd(epoll_fd); // 赋值给NetworkManager，让handleClientConnection能访问
+    #endif
 
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLET; // 边缘触发
@@ -205,14 +207,16 @@ int main() {
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, serverSocket, &event) == -1) {
         std::cerr << "epoll_ctl failed: " << strerror(errno) << std::endl;
         close(epoll_fd);
-        g_epoll_fd = -1;
+        #ifdef __linux__
+        NetworkManager::getInstance().setEpollFd(-1);
+        #endif
         return 1;
     }
 
     const int MAX_EVENTS = 1024; // 增大事件数组大小，支持更多并发
     struct epoll_event events[MAX_EVENTS];
 
-    while (g_running) {
+    while (NetworkManager::getInstance().getRunning()) {
         int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000); // 1秒超时
         if (num_events == -1) {
             if (errno == EINTR) {
@@ -227,7 +231,7 @@ int main() {
             if (events[i].data.fd == serverSocket) {
                 // 情况1：serverSocket的连接事件
                 // 双重检查：先确认服务仍在运行，再accept
-                if (!g_running) {
+                if (!NetworkManager::getInstance().getRunning()) {
                     continue;
                 }
                 
@@ -246,8 +250,8 @@ int main() {
                     // 处理新连接
                     // 存客户端套接字
                     {
-                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-                        g_clientSocketSet.insert(clientSocket);
+                        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                        NetworkManager::getInstance().getClientSocketSet().insert(clientSocket);
                     }
                     
                     // 设置clientSocket为非阻塞
@@ -256,8 +260,8 @@ int main() {
                         std::cerr << "fcntl client failed: " << strerror(errno) << std::endl;
                         // 清理客户端套接字
                     {
-                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-                        g_clientSocketSet.erase(clientSocket);
+                        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
                     }
                         closesocket(clientSocket);
                         continue;
@@ -271,8 +275,8 @@ int main() {
                         std::cerr << "epoll_ctl add client failed: " << strerror(errno) << std::endl;
                         // 清理客户端套接字
                     {
-                        std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-                        g_clientSocketSet.erase(clientSocket);
+                        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
                     }
                         closesocket(clientSocket);
                     }
@@ -280,15 +284,15 @@ int main() {
             } else {
                 // 情况2：clientSocket的可读事件
                 // 双重检查：先确认服务仍在运行
-                if (!g_running) {
+                if (!NetworkManager::getInstance().getRunning()) {
                     continue;
                 }
                 
                 SOCKET clientSocket = events[i].data.fd;
                 // 将clientSocket交给线程池处理
                 {
-                    std::lock_guard<std::mutex> lock(g_clientSocketSetMutex);
-                    g_clientSocketSet.erase(clientSocket);
+                    std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+                    NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
                 }
                 ThreadPool::getInstance().addTask(clientSocket);
                 
@@ -298,14 +302,16 @@ int main() {
 
     // 清理epoll实例
     close(epoll_fd);
-    g_epoll_fd = -1;
+    #ifdef __linux__
+    NetworkManager::getInstance().setEpollFd(-1);
+    #endif
     #endif
 
     
     // 关闭服务器套接字（仅在未被关闭的情况下）
-    if (serverSocket != INVALID_SOCKET && g_serverSocket != INVALID_SOCKET) {
+    if (serverSocket != INVALID_SOCKET && NetworkManager::getInstance().getServerSocket() != INVALID_SOCKET) {
         closesocket(serverSocket);
-        g_serverSocket = INVALID_SOCKET;
+        NetworkManager::getInstance().getServerSocket() = INVALID_SOCKET;
     }
     
 #ifdef _WIN32
