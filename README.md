@@ -24,7 +24,7 @@
 - **跨平台**：支持Windows和Linux平台
 - **安全**：使用参数化查询防止SQL注入
 - **可配置**：支持通过配置文件修改服务器配置
-- **实时消息更新**：使用短轮询技术实现消息实时更新
+- **实时消息更新**：使用长轮询技术实现消息实时更新
 - **智能线程数配置**：根据CPU核心数自动调整线程数
 - **支持中文**：支持中文用户名和消息内容
 - **单例模式**：所有管理器类均采用懒汉式单例模式，确保线程安全
@@ -37,7 +37,7 @@
 - **前端**：HTML5, CSS3, JavaScript
 - **网络**：Socket编程, HTTP协议
 - **并发处理**：线程池（生产者-消费者模式）
-- **实时通信**：短轮询（Short Polling）
+- **实时通信**：长轮询（Long Polling）
 - **设计模式**：单例模式（懒汉式）
 
 ## 项目结构
@@ -238,9 +238,10 @@ UserManager& UserManager::getInstance() {
 
 ### 4. 消息更新机制
 
-- **短轮询**：前端JavaScript每1秒向服务器发送一次请求，获取最新消息
-- **API接口**：`/api/messages`接口返回JSON格式的消息数据
+- **长轮询**：前端JavaScript发送请求后等待服务器响应，收到响应后立即发送新请求，实现实时消息更新
+- **API接口**：`/api/messages`接口返回JSON格式的消息数据，支持长轮询
 - **消息过滤**：只返回当前用户的消息，确保消息的私密性
+- **超时机制**：服务器端设置30秒超时，避免连接无限期等待
 
 ### 5. 安全措施
 
@@ -291,24 +292,24 @@ while (NetworkManager::getInstance().getRunning()) {
 #endif
 ```
 
-### 2. 短轮询实现（chat.html）
+### 2. 长轮询实现（chat.html）
 
-核心逻辑：定时向服务器请求最新消息，更新页面显示
+核心逻辑：发送请求后等待服务器响应，收到响应后立即发送新请求，实现实时消息更新
 
 ```javascript
-// 短轮询函数
-function shortPollMessages() {
+// 长轮询函数
+function longPollMessages() {
     let xhr = new XMLHttpRequest();
     // 发送GET请求到API接口
-    xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username), true);
+    xhr.open('GET', '/api/messages?username=' + encodeURIComponent(username) + '&lastCount=' + currentMessageCount, true);
     // 处理响应
     xhr.onload = function() {
         if (xhr.status === 200) {
             const data = JSON.parse(xhr.responseText);
             updateMessages(data);
         }
-        // 1秒后继续轮询
-        setTimeout(shortPollMessages, 1000);
+        // 立即发送下一次请求，实现长轮询
+        longPollMessages();
     };
     xhr.send();
 }
