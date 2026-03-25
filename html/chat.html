@@ -54,8 +54,8 @@
         // 当前消息数量
         let currentMessageCount = 0;
         
-        // 短轮询函数
-        function shortPollMessages() {
+        // 长轮询函数
+        function longPollMessages() {
             // 兼容所有浏览器的XMLHttpRequest创建
             let xhr;
             if (window.XMLHttpRequest) {
@@ -84,15 +84,15 @@
                     console.error('请求失败，状态码:', xhr.status);
                 }
                 
-                // 无论成功失败，等待1秒后继续下一次轮询
-                setTimeout(shortPollMessages, 1000);
+                // 无论成功失败，立即发送下一次请求，实现长轮询
+                longPollMessages();
             };
             
             // 处理错误
             xhr.onerror = function() {
                 console.error('网络错误');
-                // 错误后等待1秒继续轮询
-                setTimeout(shortPollMessages, 1000);
+                // 错误后等待1秒再继续轮询，避免频繁请求
+                setTimeout(longPollMessages, 1000);
             };
             
             // 发送请求
@@ -116,19 +116,19 @@
             }
         }
         
-        // 开始短轮询
-        function startShortPolling() {
+        // 开始长轮询
+        function startLongPolling() {
             // 立即执行一次
-            shortPollMessages();
+            longPollMessages();
         }
         
         // 页面加载完成后执行
         if (window.addEventListener) {
-            window.addEventListener('load', startShortPolling);
+            window.addEventListener('load', startLongPolling);
         } else if (window.attachEvent) {
-            window.attachEvent('onload', startShortPolling);
+            window.attachEvent('onload', startLongPolling);
         } else {
-            window.onload = startShortPolling;
+            window.onload = startLongPolling;
         }
     </script>
 </body>

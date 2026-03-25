@@ -120,7 +120,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             std::string chatPage = generatePage(username, status, error);
             response = createHttpResponse(200, "OK", "text/html", chatPage);
         } else if (path.find("/api/messages") == 0) {
-            // 处理API请求，返回JSON格式的消息（短轮询）
+            // 处理API请求，返回JSON格式的消息（长轮询）
             std::string username = parseUrlParam(path, "username");
             std::string lastMessageCount = parseUrlParam(path, "lastCount");
             int lastCount = 0;
@@ -132,9 +132,22 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                 }
             }
             
-            // 立即检查是否有新消息，不等待
-            auto messages = MessageManager::getInstance().getMessagesForUser(username);
-            // 无论是否有新消息，都返回所有消息
+            // 长轮询逻辑：等待新消息或超时
+            int timeout = 30; // 30秒超时
+            auto start = std::chrono::steady_clock::now();
+            std::vector<Message> messages;
+            
+            while (std::chrono::steady_clock::now() - start < std::chrono::seconds(timeout)) {
+                messages = MessageManager::getInstance().getMessagesForUser(username);
+                if (messages.size() > lastCount) {
+                    // 有新消息，立即返回
+                    break;
+                }
+                // 没有新消息，等待一段时间后再次检查
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            }
+            
+            // 返回消息（无论是否有新消息）
             std::string json = generateMessagesJson(messages);
             // 确保返回正确的Content-Type和CORS头
             std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
