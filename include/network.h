@@ -11,6 +11,8 @@
 #include <atomic>    // 包含atomic
 #include <unordered_set> // 包含unordered_set
 #include <mutex>     // 包含mutex
+#include <map>       // 包含map
+#include <chrono>    // 包含chrono
 
 // 跨平台Socket支持
 #ifdef _WIN32
@@ -33,6 +35,12 @@
 
 #endif
 
+// 辅助函数声明
+void cleanupClientSocket(SOCKET clientSocket);
+std::string receiveHttpRequest(SOCKET clientSocket);
+bool sendHttpResponse(SOCKET clientSocket, const std::string& response);
+void parseHttpRequest(const std::string& request, std::string& method, std::string& path, std::string& httpVersion, std::string& connectionHeader, std::string& body);
+
 /**
  * 网络管理器类
  * 功能：使用单例模式管理网络相关的全局变量
@@ -44,6 +52,11 @@ private:
     std::unordered_set<SOCKET> clientSocketSet;
     // 客户端Socket集合的互斥锁
     std::mutex clientSocketSetMutex;
+
+    // Socket最后活动时间映射（用于心跳检测）
+    std::map<SOCKET, std::chrono::steady_clock::time_point> socketLastActivity;
+    // 活动时间映射的互斥锁
+    std::mutex socketActivityMutex;
     
     // 服务运行状态
     std::atomic<bool> running;
@@ -117,6 +130,40 @@ public:
      * 参数：socket - 服务器套接字
      */
     void setServerSocket(SOCKET socket);
+
+    // Socket活动时间管理方法
+    /**
+     * 更新Socket最后活动时间
+     * 参数：clientSocket - 客户端Socket
+     */
+    void updateSocketActivity(SOCKET clientSocket);
+
+    /**
+     * 获取Socket最后活动时间
+     * 参数：clientSocket - 客户端Socket
+     * 返回值：最后活动时间点
+     */
+    std::chrono::steady_clock::time_point getSocketLastActivity(SOCKET clientSocket);
+
+    /**
+     * 清理超时Socket
+     * 功能：清理超过指定时间没有活动的Socket
+     * 参数：timeoutSeconds - 超时时间（秒）
+     * 返回值：清理的Socket数量
+     */
+    int cleanupTimeoutSockets(int timeoutSeconds);
+
+    /**
+     * 获取socketActivityMutex
+     * 返回值：socketActivityMutex的引用
+     */
+    std::mutex& getSocketActivityMutex();
+
+    /**
+     * 获取socketLastActivityMap
+     * 返回值：socketLastActivity的引用
+     */
+    std::map<SOCKET, std::chrono::steady_clock::time_point>& getSocketLastActivityMap();
     
     // epoll实例相关方法（仅Linux平台）
     #ifdef __linux__

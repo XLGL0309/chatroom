@@ -71,6 +71,52 @@ void NetworkManager::setServerSocket(SOCKET socket) {
     serverSocket = socket;
 }
 
+void NetworkManager::updateSocketActivity(SOCKET clientSocket) {
+    std::lock_guard<std::mutex> lock(socketActivityMutex);
+    socketLastActivity[clientSocket] = std::chrono::steady_clock::now();
+}
+
+std::chrono::steady_clock::time_point NetworkManager::getSocketLastActivity(SOCKET clientSocket) {
+    std::lock_guard<std::mutex> lock(socketActivityMutex);
+    auto it = socketLastActivity.find(clientSocket);
+    if (it != socketLastActivity.end()) {
+        return it->second;
+    }
+    return std::chrono::steady_clock::now(); // 如果没找到，返回当前时间
+}
+
+std::mutex& NetworkManager::getSocketActivityMutex() {
+    return socketActivityMutex;
+}
+
+std::map<SOCKET, std::chrono::steady_clock::time_point>& NetworkManager::getSocketLastActivityMap() {
+    return socketLastActivity;
+}
+
+int NetworkManager::cleanupTimeoutSockets(int timeoutSeconds) {
+    auto now = std::chrono::steady_clock::now();
+    std::vector<SOCKET> socketsToRemove;
+
+    {
+        std::lock_guard<std::mutex> lock(socketActivityMutex);
+        for (auto it = socketLastActivity.begin(); it != socketLastActivity.end(); ++it) {
+            auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - it->second);
+            if (duration.count() >= timeoutSeconds) {
+                socketsToRemove.push_back(it->first);
+            }
+        }
+    }
+
+    int removedCount = 0;
+    for (SOCKET socket : socketsToRemove) {
+        // 清理超时socket
+        cleanupClientSocket(socket);
+        removedCount++;
+    }
+
+    return removedCount;
+}
+
 #ifdef __linux__
 /**
  * 获取epoll文件描述符
@@ -94,7 +140,19 @@ void NetworkManager::setEpollFd(int fd) {
  * 功能：从epoll中移除客户端socket并关闭
  * 参数：clientSocket - 客户端socket
  */
-static void cleanupClientSocket(SOCKET clientSocket) {
+void cleanupClientSocket(SOCKET clientSocket) {
+    // 从clientSocketSet中移除
+    {
+        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
+    }
+
+    // 从socketLastActivity中移除
+    {
+        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getSocketActivityMutex());
+        NetworkManager::getInstance().getSocketLastActivityMap().erase(clientSocket);
+    }
+
 #ifdef __linux__
     if (NetworkManager::getInstance().getEpollFd() != -1) {
         if (epoll_ctl(NetworkManager::getInstance().getEpollFd(), EPOLL_CTL_DEL, clientSocket, nullptr) == -1) {
@@ -111,7 +169,7 @@ static void cleanupClientSocket(SOCKET clientSocket) {
  * 参数：clientSocket - 客户端socket
  * 返回值：完整的HTTP请求字符串
  */
-static std::string receiveHttpRequest(SOCKET clientSocket) {
+std::string receiveHttpRequest(SOCKET clientSocket) {
     char buffer[4096];
     std::string request;
     int bytesRead;
@@ -129,8 +187,8 @@ static std::string receiveHttpRequest(SOCKET clientSocket) {
         if (bytesRead <= 0) {
             if (bytesRead == 0) {
                 // 客户端正常关闭连接
-                // 如果已经收到了部分请求，返回这部分请求
-                return request;
+                // 返回空字符串，让调用者清理连接
+                return "";
             } else {
                 // 发生错误
                 #ifdef _WIN32
@@ -219,7 +277,7 @@ static std::string receiveHttpRequest(SOCKET clientSocket) {
  *       response - HTTP响应字符串
  * 返回值：成功返回true，失败返回false
  */
-static bool sendHttpResponse(SOCKET clientSocket, const std::string& response) {
+bool sendHttpResponse(SOCKET clientSocket, const std::string& response) {
     // 循环发送，直到所有数据发完
     int totalSent = 0;
     int responseLen = response.length();
@@ -242,25 +300,57 @@ static bool sendHttpResponse(SOCKET clientSocket, const std::string& response) {
 
 /**
  * 辅助函数：解析HTTP请求
- * 功能：从HTTP请求中解析方法、路径和请求体
+ * 功能：从HTTP请求中解析方法、路径、HTTP版本、Connection头部和请求体
  * 参数：request - HTTP请求字符串
  *       method - 输出参数，存储HTTP方法
  *       path - 输出参数，存储请求路径
+ *       httpVersion - 输出参数，存储HTTP版本
+ *       connectionHeader - 输出参数，存储Connection头部值
  *       body - 输出参数，存储请求体
  */
-static void parseHttpRequest(const std::string& request, std::string& method, std::string& path, std::string& body) {
-    // 解析HTTP请求的方法和路径
+void parseHttpRequest(const std::string& request, std::string& method, std::string& path, std::string& httpVersion, std::string& connectionHeader, std::string& body) {
+    // 解析HTTP请求的方法、路径和HTTP版本
     size_t methodEnd = request.find(" ");
     size_t pathEnd = request.find(" ", methodEnd + 1);
-    if (methodEnd != std::string::npos && pathEnd != std::string::npos) {
+    size_t versionEnd = request.find("\r\n", pathEnd + 1);
+    if (methodEnd != std::string::npos && pathEnd != std::string::npos && versionEnd != std::string::npos) {
         method = request.substr(0, methodEnd);
         path = request.substr(methodEnd + 1, pathEnd - methodEnd - 1);
+        httpVersion = request.substr(pathEnd + 1, versionEnd - pathEnd - 1);
+    } else {
+        httpVersion = "HTTP/1.1"; // 默认值
     }
-    
-    // 提取请求体
+
+    // 初始化connectionHeader为空
+    connectionHeader = "";
+
+    // 提取请求头结束位置
     size_t headerEndPos = request.find("\r\n\r\n");
     if (headerEndPos != std::string::npos) {
+        // 提取请求体
         body = request.substr(headerEndPos + 4);
+
+        // 解析Connection头部
+        size_t connectionPos = request.find("Connection:");
+        if (connectionPos != std::string::npos && connectionPos < headerEndPos) {
+            size_t valueStart = request.find(" ", connectionPos) + 1;
+            size_t valueEnd = request.find("\r\n", valueStart);
+            if (valueStart != std::string::npos && valueEnd != std::string::npos && valueEnd < headerEndPos) {
+                connectionHeader = request.substr(valueStart, valueEnd - valueStart);
+                // 去除空格并转为小写以便比较
+                size_t start = connectionHeader.find_first_not_of(" \t");
+                size_t end = connectionHeader.find_last_not_of(" \t");
+                if (start != std::string::npos && end != std::string::npos) {
+                    connectionHeader = connectionHeader.substr(start, end - start + 1);
+                }
+                // 转为小写
+                for (char& c : connectionHeader) {
+                    c = std::tolower(c);
+                }
+            }
+        }
+    } else {
+        body = "";
     }
 }
 
@@ -341,6 +431,20 @@ SOCKET createServerSocket(int port) {
  * 参数：clientSocket - 客户端Socket
  */
 void handleClientConnection(SOCKET clientSocket) {
+    // 检查服务器是否正在运行
+    if (!NetworkManager::getInstance().getRunning()) {
+        cleanupClientSocket(clientSocket);
+        return;
+    }
+    
+    // 检查套接字是否有效
+    if (clientSocket == INVALID_SOCKET) {
+        return;
+    }
+
+    // 更新socket活动时间
+    NetworkManager::getInstance().updateSocketActivity(clientSocket);
+
     // 接收完整的HTTP请求
     std::string request = receiveHttpRequest(clientSocket);
     if (request.empty()) {
@@ -348,17 +452,52 @@ void handleClientConnection(SOCKET clientSocket) {
         cleanupClientSocket(clientSocket);
         return;
     }
-    
-    // 解析HTTP请求的方法、路径和请求体
-    std::string method, path, body;
-    parseHttpRequest(request, method, path, body);
-    
+
+    // 解析HTTP请求的方法、路径、HTTP版本、Connection头部和请求体
+    std::string method, path, httpVersion, connectionHeader, body;
+    parseHttpRequest(request, method, path, httpVersion, connectionHeader, body);
+
+    // 根据HTTP版本和Connection头部决定是否保持连接
+    bool keepAlive = false;
+    if (httpVersion.find("HTTP/1.1") != std::string::npos) {
+        // HTTP/1.1 默认保持连接，除非明确指定 Connection: close
+        keepAlive = (connectionHeader != "close");
+    } else if (httpVersion.find("HTTP/1.0") != std::string::npos) {
+        // HTTP/1.0 默认关闭连接，除非明确指定 Connection: keep-alive
+        keepAlive = (connectionHeader == "keep-alive");
+    }
+    // 其他HTTP版本默认为关闭连接
+
     // 处理HTTP请求
-    std::string response = handleHttpRequest(method, path, body);
+    std::string response = handleHttpRequest(method, path, body, keepAlive);
+
+    // 检查服务器是否仍然运行
+    if (!NetworkManager::getInstance().getRunning()) {
+        cleanupClientSocket(clientSocket);
+        return;
+    }
 
     // 发送HTTP响应
-    sendHttpResponse(clientSocket, response);
-    
-    // 清理连接
-    cleanupClientSocket(clientSocket);
+    bool sendSuccess = sendHttpResponse(clientSocket, response);
+
+    // 根据keepAlive和发送结果决定是否清理连接
+    if (!keepAlive || !sendSuccess) {
+        cleanupClientSocket(clientSocket);
+    } else {
+        // 保持连接，不关闭socket
+        // Linux平台：重新注册到epoll（EPOLLONESHOT需要重新注册）
+        #ifdef __linux__
+        if (NetworkManager::getInstance().getEpollFd() != -1) {
+            struct epoll_event event;
+            event.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
+            event.data.fd = clientSocket;
+            if (epoll_ctl(NetworkManager::getInstance().getEpollFd(), EPOLL_CTL_MOD, clientSocket, &event) == -1) {
+                std::cerr << "epoll_ctl mod failed: " << strerror(errno) << std::endl;
+                cleanupClientSocket(clientSocket);
+            }
+            // 不需要重新添加到clientSocketSet，因为主线程不再移除
+        }
+        #endif
+        // Windows平台不需要重新添加到clientSocketSet，因为主线程不再移除
+    }
 }

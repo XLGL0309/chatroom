@@ -185,18 +185,19 @@ int main() {
         // 检查客户端套接字是否有数据
         {  
             std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
-            for (auto it = NetworkManager::getInstance().getClientSocketSet().begin(); it != NetworkManager::getInstance().getClientSocketSet().end();) {
+            for (auto it = NetworkManager::getInstance().getClientSocketSet().begin(); it != NetworkManager::getInstance().getClientSocketSet().end(); ++it) {
                 SOCKET clientSocket = *it;
                 
                 if (FD_ISSET(clientSocket, &readSet)) {
                     // 客户端有数据，交给线程池处理
                     ThreadPool::getInstance().addTask(clientSocket);
-                    // 从集合中移除，因为线程处理完后会关闭
-                    it = NetworkManager::getInstance().getClientSocketSet().erase(it);
-                } else {
-                    ++it;
                 }
             }
+        }
+        
+        // 定期清理超时的socket（心跳检测）
+        if (NetworkManager::getInstance().cleanupTimeoutSockets(70) > 0) {
+            // 清理了超时的socket
         }
     }
     #else
@@ -241,6 +242,11 @@ int main() {
     while (NetworkManager::getInstance().getRunning()) {
         // 等待事件，超时时间1秒
         int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
+        
+        // 定期清理超时的socket（心跳检测）
+        if (NetworkManager::getInstance().cleanupTimeoutSockets(70) > 0) {
+            // 清理了超时的socket
+        }
         if (num_events == -1) {
             if (errno == EINTR) {
                 continue;
@@ -314,11 +320,8 @@ int main() {
                 
                 SOCKET clientSocket = events[i].data.fd;
                 // 将clientSocket交给线程池处理
-                {
-                    std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
-                    NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
-                }
                 ThreadPool::getInstance().addTask(clientSocket);
+                // 不立即从集合中移除，由线程处理完后根据keepAlive决定
                 
             }
         }
@@ -331,6 +334,16 @@ int main() {
     #endif
     #endif
 
+    
+    // 清理所有客户端连接
+    {
+        std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
+        auto& clientSockets = NetworkManager::getInstance().getClientSocketSet();
+        for (SOCKET clientSocket : clientSockets) {
+            closesocket(clientSocket);
+        }
+        clientSockets.clear();
+    }
     
     // 关闭服务器套接字（仅在未被关闭的情况下）
     if (serverSocket != INVALID_SOCKET && NetworkManager::getInstance().getServerSocket() != INVALID_SOCKET) {

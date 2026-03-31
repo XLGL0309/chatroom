@@ -99,7 +99,7 @@ std::string generatePage(const std::string& username, const std::string& status 
  *       body - 请求正文
  * 返回值：HTTP响应
  */
-std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body) {
+std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body, bool keepAlive) {
     std::string response;
 
     if (method == "GET") {
@@ -108,7 +108,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             std::string filePath = "./html/login.html";
             std::string content = readFile(filePath);
             std::string contentType = getContentType(filePath);
-            response = createHttpResponse(200, "OK", contentType, content);
+            response = createHttpResponse(200, "OK", contentType, content, "", keepAlive);
         } else if (path.find("/view") == 0) {
             // 查看消息
             // 使用parseUrlParam函数解析URL参数
@@ -118,7 +118,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             
             // 生成聊天页面
             std::string chatPage = generatePage(username, status, error);
-            response = createHttpResponse(200, "OK", "text/html", chatPage);
+            response = createHttpResponse(200, "OK", "text/html", chatPage, "", keepAlive);
         } else if (path.find("/api/messages") == 0) {
             // 处理API请求，返回JSON格式的消息（长轮询）
             std::string username = parseUrlParam(path, "username");
@@ -151,6 +151,11 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             std::string json = generateMessagesJson(messages);
             // 确保返回正确的Content-Type和CORS头
             std::string responseWithHeaders = "HTTP/1.1 200 OK\r\n";
+            if (keepAlive) {
+                responseWithHeaders += "Connection: keep-alive\r\n";
+            } else {
+                responseWithHeaders += "Connection: close\r\n";
+            }
             responseWithHeaders += "Content-Type: application/json; charset=utf-8\r\n";
             responseWithHeaders += "Access-Control-Allow-Origin: *\r\n";
             responseWithHeaders += "Content-Length: " + std::to_string(json.length()) + "\r\n";
@@ -158,7 +163,7 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
             responseWithHeaders += json;
             response = responseWithHeaders;
         } else {
-            response = createHttpResponse(404, "Not Found", "text/plain", "Page not found");
+            response = createHttpResponse(404, "Not Found", "text/plain", "Page not found", "", keepAlive);
         }
     } else if (method == "POST") {
         if (path == "/login") {
@@ -176,16 +181,16 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                         // 对用户名进行URL编码
                         std::string encodedUsername = urlEncode(username);
                         // 跳转到聊天页面
-                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername);
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername, keepAlive);
                     } else {
                         // 用户名或密码错误，返回错误
-                        response = createHttpResponse(401, "Unauthorized", "text/plain", "Invalid username or password");
+                        response = createHttpResponse(401, "Unauthorized", "text/plain", "Invalid username or password", "", keepAlive);
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters", "", keepAlive);
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters ");
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters ", "", keepAlive);
             }
         } else if (path == "/register") {
             // 处理注册
@@ -201,16 +206,16 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                     if (registered) {
                         // 注册成功，自动登录并跳转到聊天页面
                         std::string encodedUsername = urlEncode(username);
-                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername);
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedUsername, keepAlive);
                     } else {
                         // 用户名已存在，返回错误
-                        response = createHttpResponse(409, "Conflict", "text/plain", "Username already exists");
+                        response = createHttpResponse(409, "Conflict", "text/plain", "Username already exists", "", keepAlive);
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid input: username must be valid and password must be at least 6 characters", "", keepAlive);
                 }
             } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters", "", keepAlive);
             }
         } else if (path == "/send") {
             // 处理发送消息
@@ -227,15 +232,15 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                     if (content.length() > 1000000) {
                         // 消息过长，返回错误页面
                         std::string errorPage = generatePage(from, "", "Message too long. Maximum length is 1,000,000 characters.");
-                        response = createHttpResponse(200, "OK", "text/html", errorPage);
+                        response = createHttpResponse(200, "OK", "text/html", errorPage, "", keepAlive);
                     } else if (from == to) {
                         // 不能给自己发消息，返回错误页面
                         std::string errorPage = generatePage(from, "", "You cannot send messages to yourself");
-                        response = createHttpResponse(200, "OK", "text/html", errorPage);
+                        response = createHttpResponse(200, "OK", "text/html", errorPage, "", keepAlive);
                     } else if (!UserManager::getInstance().userExists(to)) {
                         // 目标用户不存在，返回错误页面
                         std::string errorPage = generatePage(from, "", "User '" + to + "' does not exist");
-                        response = createHttpResponse(200, "OK", "text/html", errorPage);
+                        response = createHttpResponse(200, "OK", "text/html", errorPage, "", keepAlive);
                     } else {
                         // 保存消息
                         MessageManager::getInstance().addMessage(from, to, content);
@@ -243,19 +248,19 @@ std::string handleHttpRequest(const std::string& method, const std::string& path
                         // 对用户名进行URL编码
                         std::string encodedFrom = urlEncode(from);
                         // 跳回查看消息页面并添加成功提示
-                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedFrom + "&status=success");
+                        response = createHttpResponse(302, "Found", "", "", "/view?username=" + encodedFrom + "&status=success", keepAlive);
                     }
                 } else {
-                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters");
+                    response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters", "", keepAlive);
                 }
             } else {
-                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters");
+                response = createHttpResponse(400, "Bad Request", "text/plain", "Invalid request parameters", "", keepAlive);
             }
         } else {
-            response = createHttpResponse(404, "Not Found", "text/plain", "Page not found");
+            response = createHttpResponse(404, "Not Found", "text/plain", "Page not found", "", keepAlive);
         }
     } else {
-        response = createHttpResponse(405, "Method Not Allowed", "text/plain", "Method not allowed");
+        response = createHttpResponse(405, "Method Not Allowed", "text/plain", "Method not allowed", "", keepAlive);
     }
 
     return response;

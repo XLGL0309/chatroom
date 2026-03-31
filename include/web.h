@@ -19,8 +19,9 @@ extern const std::string htmlChat;  // 聊天页面
  * 参数：method - HTTP方法（GET、POST等）
  *       path - 请求路径
  *       body - 请求正文
+ *       keepAlive - 是否保持连接
  * 返回值：HTTP响应
  */
-std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body);
+std::string handleHttpRequest(const std::string& method, const std::string& path, const std::string& body, bool keepAlive);
 
 #endif // WEB_H

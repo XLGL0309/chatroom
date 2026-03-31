@@ -91,8 +91,9 @@ std::string parseUrlParam(const std::string& url, const std::string& key);
  *       contentType - 内容类型
  *       content - 响应内容
  *       location - 重定向地址（可选）
+ *       keepAlive - 是否保持连接（可选，默认为true）
  * 返回值：完整的HTTP响应字符串
  */
-std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location = "");
+std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location = "", bool keepAlive = true);
 
 #endif // UTILS_H

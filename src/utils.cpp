@@ -76,10 +76,17 @@ std::string jsonEscape(const std::string& input) {
  *       location - 重定向地址（可选）
  * 返回值：完整的HTTP响应字符串
  */
-std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location) {
+std::string createHttpResponse(int statusCode, const std::string& statusMessage, const std::string& contentType, const std::string& content, const std::string& location, bool keepAlive) {
     std::string response;
     response += "HTTP/1.1 " + std::to_string(statusCode) + " " + statusMessage + "\r\n";
-    
+
+    // 添加Connection头部
+    if (keepAlive) {
+        response += "Connection: keep-alive\r\n";
+    } else {
+        response += "Connection: close\r\n";
+    }
+
     // 如果提供了location参数，则添加Location头（用于重定向）
     if (!location.empty()) {
         response += "Location: " + location + "\r\n";
