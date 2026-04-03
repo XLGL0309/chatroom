@@ -2,42 +2,177 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Room</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 400px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        h1 { text-align: center; color: #333; }
-        h2 { text-align: center; color: #666; font-size: 16px; margin-bottom: 20px; }
-        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-        input:focus { outline: none; border-color: #4CAF50; box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2); }
-        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; box-sizing: border-box; font-size: 14px; transition: background-color 0.3s; }
-        button:hover { background: #45a049; }
-        button:active { background: #3d8b40; }
-        .form-section { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
-        .error { color: red; margin: 10px 0; text-align: center; }
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .container:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+        
+        h2 {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+            font-weight: 400;
+        }
+        
+        .form-section {
+            position: relative;
+        }
+        
+        form {
+            transition: all 0.3s ease;
+        }
+        
+        input {
+            width: 100%;
+            padding: 15px;
+            margin: 12px 0;
+            border: 2px solid #f0f0f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .register-btn {
+            background: #667eea;
+            color: white;
+        }
+        
+        .register-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+        
+        .login-btn {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .login-btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .back-btn {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .back-btn:hover {
+            background: #e0e0e0;
+            transform: translateY(-2px);
+        }
+        
+        .error {
+            color: #f44336;
+            margin: 15px 0;
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            background: #ffebee;
+            font-size: 14px;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        #registerForm {
+            animation: fadeIn 0.5s ease;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Chat Room</h1>
+        <h2>Connect and chat with friends</h2>
         
         <!-- 登录和注册表单 -->
         <div class="form-section">
-            <h2>登录/注册</h2>
             <form action="/login" method="post">
                 <input type="text" name="username" placeholder="请输入用户名" required>
                 <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
-                <div style="display: flex; gap: 10px;">
-                    <button type="button" onclick="switchToRegister()" style="flex: 1; background: #2196F3;">注册</button>
-                    <button type="submit" style="flex: 1;">登录</button>
+                <div class="button-group">
+                    <button type="button" onclick="switchToRegister()" class="register-btn">注册</button>
+                    <button type="submit" class="login-btn">登录</button>
                 </div>
             </form>
-            <form id="registerForm" action="/register" method="post" style="display: none; margin-top: 20px;">
+            <form id="registerForm" action="/register" method="post" style="display: none; margin-top: 30px;">
                 <input type="text" name="username" placeholder="请输入用户名" required>
                 <input type="password" name="password" placeholder="请输入密码(6位以上)" required>
-                <div style="display: flex; gap: 10px;">
-                    <button type="button" onclick="switchToLogin()" style="flex: 1; background: #2196F3;">返回登录</button>
-                    <button type="submit" style="flex: 1;">注册并登录</button>
+                <div class="button-group">
+                    <button type="button" onclick="switchToLogin()" class="back-btn">返回登录</button>
+                    <button type="submit" class="login-btn">注册并登录</button>
                 </div>
             </form>
         </div>
