@@ -93,7 +93,7 @@ std::map<SOCKET, std::chrono::steady_clock::time_point>& NetworkManager::getSock
     return socketLastActivity;
 }
 
-int NetworkManager::cleanupTimeoutSockets(int timeoutSeconds) {
+void NetworkManager::cleanupTimeoutSockets(int timeoutSeconds) {
     auto now = std::chrono::steady_clock::now();
     std::vector<SOCKET> socketsToRemove;
 
@@ -102,19 +102,15 @@ int NetworkManager::cleanupTimeoutSockets(int timeoutSeconds) {
         for (auto it = socketLastActivity.begin(); it != socketLastActivity.end(); ++it) {
             auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - it->second);
             if (duration.count() >= timeoutSeconds) {
-                socketsToRemove.push_back(it->first);
+                socketsToRemove.emplace_back(it->first);
             }
         }
     }
 
-    int removedCount = 0;
     for (SOCKET socket : socketsToRemove) {
         // 清理超时socket
         cleanupClientSocket(socket);
-        removedCount++;
     }
-
-    return removedCount;
 }
 
 #ifdef __linux__

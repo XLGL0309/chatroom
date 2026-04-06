@@ -102,7 +102,7 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
             } else {
                 msg.timestamp = time(nullptr);
             }
-            messages.push_back(msg);
+            messages.emplace_back(msg);
         }
         mysql_free_result(result);
     }

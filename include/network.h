@@ -149,9 +149,9 @@ public:
      * 清理超时Socket
      * 功能：清理超过指定时间没有活动的Socket
      * 参数：timeoutSeconds - 超时时间（秒）
-     * 返回值：清理的Socket数量
+     * 返回值：空
      */
-    int cleanupTimeoutSockets(int timeoutSeconds);
+    void cleanupTimeoutSockets(int timeoutSeconds);
 
     /**
      * 获取socketActivityMutex

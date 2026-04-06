@@ -196,9 +196,7 @@ int main() {
         }
         
         // 定期清理超时的socket（心跳检测）
-        if (NetworkManager::getInstance().cleanupTimeoutSockets(70) > 0) {
-            // 清理了超时的socket
-        }
+        NetworkManager::getInstance().cleanupTimeoutSockets(70);
     }
     #else
     // Linux平台使用epoll
@@ -243,10 +241,6 @@ int main() {
         // 等待事件，超时时间1秒
         int num_events = epoll_wait(epoll_fd, events, MAX_EVENTS, 1000);
         
-        // 定期清理超时的socket（心跳检测）
-        if (NetworkManager::getInstance().cleanupTimeoutSockets(70) > 0) {
-            // 清理了超时的socket
-        }
         if (num_events == -1) {
             if (errno == EINTR) {
                 continue;
@@ -325,6 +319,9 @@ int main() {
                 
             }
         }
+        
+        // 定期清理超时的socket（心跳检测）
+        NetworkManager::getInstance().cleanupTimeoutSockets(70);
     }
 
     // 清理epoll实例
