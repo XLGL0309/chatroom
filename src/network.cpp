@@ -137,10 +137,19 @@ void NetworkManager::setEpollFd(int fd) {
  * 参数：clientSocket - 客户端socket
  */
 void cleanupClientSocket(SOCKET clientSocket) {
-    // 从clientSocketSet中移除
+    // 检查socket是否有效
+    if (clientSocket == INVALID_SOCKET) {
+        return;
+    }
+    
+    // 从clientSocketSet中移除，如果移除失败说明已经被清理
     {
         std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
-        NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
+        size_t erased = NetworkManager::getInstance().getClientSocketSet().erase(clientSocket);
+        if (erased == 0) {
+            // Socket已经被清理，直接返回
+            return;
+        }
     }
 
     // 从socketLastActivity中移除
@@ -156,6 +165,8 @@ void cleanupClientSocket(SOCKET clientSocket) {
         }
     }
 #endif
+    
+    // 关闭socket
     closesocket(clientSocket);
 }
 
@@ -277,18 +288,76 @@ bool sendHttpResponse(SOCKET clientSocket, const std::string& response) {
     // 循环发送，直到所有数据发完
     int totalSent = 0;
     int responseLen = response.length();
+    int retryCount = 0;
+    const int MAX_RETRIES = 100; // 最大重试次数
+    const int RETRY_DELAY_MS = 10; // 重试延迟（毫秒）
+    
     while (totalSent < responseLen) {
         int bytesSent = send(clientSocket, response.c_str() + totalSent, responseLen - totalSent, 0);
+        
         if (bytesSent == SOCKET_ERROR) {
-            std::cerr << "Send failed: " <<  
-                #ifdef _WIN32
-                    WSAGetLastError()
-                #else
-                    strerror(errno)
-                #endif
-                << std::endl;
+            #ifdef _WIN32
+            int error = WSAGetLastError();
+            
+            // 处理非阻塞模式下的WSAEWOULDBLOCK错误
+            if (error == WSAEWOULDBLOCK) {
+                retryCount++;
+                if (retryCount >= MAX_RETRIES) {
+                    std::cerr << "Send failed: max retries exceeded for socket " << clientSocket << std::endl;
+                    return false;
+                }
+                // 短暂延迟后重试
+                std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY_MS));
+                continue;
+            }
+            
+            // 其他错误
+            std::cerr << "Send failed on socket " << clientSocket << ", error: " << error;
+            switch (error) {
+                case WSAENOTSOCK:
+                    std::cerr << " (WSAENOTSOCK: Socket operation on non-socket)";
+                    break;
+                case WSAECONNRESET:
+                    std::cerr << " (WSAECONNRESET: Connection reset by peer)";
+                    break;
+                case WSAENOTCONN:
+                    std::cerr << " (WSAENOTCONN: Socket is not connected)";
+                    break;
+                case WSAENETDOWN:
+                    std::cerr << " (WSAENETDOWN: Network subsystem failed)";
+                    break;
+                case WSAEINTR:
+                    std::cerr << " (WSAEINTR: Interrupted function call)";
+                    break;
+                case WSAEFAULT:
+                    std::cerr << " (WSAEFAULT: Bad address)";
+                    break;
+            }
+            std::cerr << std::endl;
+            #else
+            int error = errno;
+            
+            // 处理非阻塞模式下的EAGAIN/EWOULDBLOCK错误
+            if (error == EAGAIN || error == EWOULDBLOCK) {
+                retryCount++;
+                if (retryCount >= MAX_RETRIES) {
+                    std::cerr << "Send failed: max retries exceeded for socket " << clientSocket << std::endl;
+                    return false;
+                }
+                // 短暂延迟后重试
+                std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY_MS));
+                continue;
+            }
+            
+            // 其他错误
+            std::cerr << "Send failed on socket " << clientSocket << ", error: " << strerror(error) << std::endl;
+            #endif
+            
             return false;
         }
+        
+        // 发送成功，重置重试计数
+        retryCount = 0;
         totalSent += bytesSent;
     }
     return true;
