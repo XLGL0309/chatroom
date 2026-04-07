@@ -4,8 +4,8 @@
  * 功能：实现消息管理器的方法，用于管理消息的添加、获取和清理
  */
 
-#include "../include/message.h"
-#include "../include/database.h"
+#include "message.h"
+#include "database.h"
 #include <iostream>
 #include <ctime>
 

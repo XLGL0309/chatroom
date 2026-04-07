@@ -4,7 +4,7 @@
  * 功能：实现数据库管理器的方法，用于管理数据库连接和执行SQL查询
  */
 
-#include "../include/database.h"
+#include "database.h"
 #include <iostream>
 
 /**

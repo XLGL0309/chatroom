@@ -4,7 +4,7 @@
  * 功能：实现配置管理器的方法，用于加载和获取配置信息
  */
 
-#include "../include/config.h"
+#include "config.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>

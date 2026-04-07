@@ -4,8 +4,8 @@
  * 功能：实现用户管理器的方法，用于用户注册、登录和检查用户是否存在
  */
 
-#include "../include/user.h"
-#include "../include/database.h"
+#include "user.h"
+#include "database.h"
 #include <iostream>
 
 /**

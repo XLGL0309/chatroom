@@ -4,10 +4,10 @@
  * 功能：实现HTTP请求处理、页面生成和消息管理
  */
 
-#include "../include/web.h"
-#include "../include/utils.h"
-#include "../include/user.h"
-#include "../include/message.h"
+#include "web.h"
+#include "utils.h"
+#include "user.h"
+#include "message.h"
 #include <iostream>
 #include <fstream>
 #include <thread>

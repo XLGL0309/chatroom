@@ -4,8 +4,8 @@
  * 功能：实现线程池的方法，用于管理线程和处理任务
  */
 
-#include "../include/threadpool.h"
-#include "../include/network.h"
+#include "threadpool.h"
+#include "network.h"
 #include <iostream>
 #include <string>
 

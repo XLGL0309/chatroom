@@ -9,10 +9,10 @@
 #include <string>
 #include <vector>
 #include <mutex>
-#include "../include/network.h"
-#include "../include/database.h"
-#include "../include/threadpool.h"
-#include "../include/config.h"
+#include "network.h"
+#include "database.h"
+#include "threadpool.h"
+#include "config.h"
 
 // 用于密码输入的头文件
 #ifdef _WIN32

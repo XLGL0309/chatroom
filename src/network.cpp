@@ -4,8 +4,8 @@
  * 功能：实现网络管理器、网络初始化、服务器Socket创建和客户端连接处理
  */
 
-#include "../include/network.h"
-#include "../include/web.h"
+#include "network.h"
+#include "web.h"
 #include <iostream>
 #include <thread>
 #ifdef __linux__
