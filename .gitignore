@@ -14,5 +14,7 @@
 *.ilk
 *.exp
 
-
-#
+# 忽略 build 文件夹中的所有文件
+build/*
+# 但保留 build/clean.bat 文件
+!build/clean.bat

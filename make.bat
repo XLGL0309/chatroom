@@ -1,19 +1,18 @@
 @echo off
 
-rem 清理之前的构建文件
-echo Cleaning previous build files...
-call clean.bat
+rem 创建并进入 build 目录
+if not exist build mkdir build
+cd build
 
-rem 执行 cmake .
+rem 执行 cmake ..
 echo Running CMake...
-cmake .
+cmake ..
 
-rem 执行 cmake --build .
+rem 执行构建
 echo Building project...
 cmake --build .
 
-rem 构建完成后再次清理，只保留可执行文件
-echo Cleaning up after build...
-call clean.bat
+rem 回到根目录
+cd ..
 
 echo Build completed successfully!

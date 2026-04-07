@@ -13,10 +13,14 @@ endif()
 
 # 设置可执行文件输出目录为根目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # 对于 MSVC，确保 Debug 和 Release 版本都输出到根目录
 if(MSVC)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR})
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR})
+    # 设置调试符号文件输出目录到 build 文件夹
+    set(CMAKE_PDB_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR})
+    set(CMAKE_PDB_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR})
 endif()
 
 include_directories(include)
@@ -52,11 +56,3 @@ else()
     find_package(Threads REQUIRED)
     target_link_libraries(chatroom Threads::Threads mysql)
 endif()
-
-# 添加清理目标，删除构建生成的文件
-add_custom_target(clean-all
-    COMMAND ${CMAKE_COMMAND} -E remove -f chatroom.exe chatroom.pdb
-    COMMAND ${CMAKE_COMMAND} -E remove_directory CMakeFiles
-    COMMAND ${CMAKE_COMMAND} -E remove -f CMakeCache.txt cmake_install.cmake Makefile
-    COMMENT "Cleaning all build files"
-)
