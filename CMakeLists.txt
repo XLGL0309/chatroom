@@ -36,18 +36,10 @@ else()
     include_directories(/usr/include/mysql)
     link_directories(/usr/lib64/mysql)
 endif()
-
-add_executable(chatroom
-    main.cpp
-    src/network.cpp
-    src/message.cpp
-    src/user.cpp
-    src/web.cpp
-    src/utils.cpp
-    src/database.cpp
-    src/threadpool.cpp
-    src/config.cpp
-)
+# 收集根目录和 src 目录下的 .cpp 文件
+file(GLOB MAIN_FILE "main.cpp")
+file(GLOB_RECURSE SRC_FILES "src/*.cpp")
+add_executable(chatroom ${MAIN_FILE} ${SRC_FILES})
 
 # 跨平台链接socket/线程库
 if(WIN32)
