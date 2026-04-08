@@ -93,6 +93,20 @@ std::map<SOCKET, std::chrono::steady_clock::time_point>& NetworkManager::getSock
     return socketLastActivity;
 }
 
+bool NetworkManager::isProcessing(SOCKET clientSocket) {
+    std::lock_guard<std::mutex> lock(processingSocketsMutex);
+    return processingSockets.find(clientSocket) != processingSockets.end();
+}
+
+void NetworkManager::markProcessing(SOCKET clientSocket, bool processing) {
+    std::lock_guard<std::mutex> lock(processingSocketsMutex);
+    if (processing) {
+        processingSockets.insert(clientSocket);
+    } else {
+        processingSockets.erase(clientSocket);
+    }
+}
+
 void NetworkManager::cleanupTimeoutSockets(int timeoutSeconds) {
     auto now = std::chrono::steady_clock::now();
     std::vector<SOCKET> socketsToRemove;
@@ -141,7 +155,10 @@ void cleanupClientSocket(SOCKET clientSocket) {
     if (clientSocket == INVALID_SOCKET) {
         return;
     }
-    
+
+    // 取消处理标记
+    NetworkManager::getInstance().markProcessing(clientSocket, false);
+
     // 从clientSocketSet中移除，如果移除失败说明已经被清理
     {
         std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
@@ -501,9 +518,11 @@ void handleClientConnection(SOCKET clientSocket) {
         cleanupClientSocket(clientSocket);
         return;
     }
-    
+
     // 检查套接字是否有效
     if (clientSocket == INVALID_SOCKET) {
+        // 无效socket，取消标记后返回
+        NetworkManager::getInstance().markProcessing(clientSocket, false);
         return;
     }
 
@@ -550,6 +569,8 @@ void handleClientConnection(SOCKET clientSocket) {
         cleanupClientSocket(clientSocket);
     } else {
         // 保持连接，不关闭socket
+        // 取消处理标记，允许下次请求时重新加入任务队列
+        NetworkManager::getInstance().markProcessing(clientSocket, false);
         // Linux平台：重新注册到epoll（EPOLLONESHOT需要重新注册）
         #ifdef __linux__
         if (NetworkManager::getInstance().getEpollFd() != -1) {

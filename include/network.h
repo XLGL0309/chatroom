@@ -57,6 +57,11 @@ private:
     std::map<SOCKET, std::chrono::steady_clock::time_point> socketLastActivity;
     // 活动时间映射的互斥锁
     std::mutex socketActivityMutex;
+
+    // 正在处理的Socket集合（防止同一socket被多个线程同时处理）
+    std::unordered_set<SOCKET> processingSockets;
+    // processingSockets的互斥锁
+    std::mutex processingSocketsMutex;
     
     // 服务运行状态
     std::atomic<bool> running;
@@ -164,6 +169,20 @@ public:
      * 返回值：socketLastActivity的引用
      */
     std::map<SOCKET, std::chrono::steady_clock::time_point>& getSocketLastActivityMap();
+
+    /**
+     * 检查Socket是否正在被处理
+     * 参数：clientSocket - 客户端Socket
+     * 返回值：true表示正在处理，false表示不在处理
+     */
+    bool isProcessing(SOCKET clientSocket);
+
+    /**
+     * 标记Socket为正在处理或取消标记
+     * 参数：clientSocket - 客户端Socket
+     *       processing - true表示标记为正在处理，false表示取消标记
+     */
+    void markProcessing(SOCKET clientSocket, bool processing);
     
     // epoll实例相关方法（仅Linux平台）
     #ifdef __linux__

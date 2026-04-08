@@ -183,14 +183,19 @@ int main() {
         }
         
         // 检查客户端套接字是否有数据
-        {  
+        {
             std::lock_guard<std::mutex> lock(NetworkManager::getInstance().getClientSocketSetMutex());
             for (auto it = NetworkManager::getInstance().getClientSocketSet().begin(); it != NetworkManager::getInstance().getClientSocketSet().end(); ++it) {
                 SOCKET clientSocket = *it;
-                
+
                 if (FD_ISSET(clientSocket, &readSet)) {
-                    // 客户端有数据，交给线程池处理
-                    ThreadPool::getInstance().addTask(clientSocket);
+                    // 检查是否已有线程在处理此socket，防止重复添加
+                    if (!NetworkManager::getInstance().isProcessing(clientSocket)) {
+                        // 标记为正在处理
+                        NetworkManager::getInstance().markProcessing(clientSocket, true);
+                        // 客户端有数据，交给线程池处理
+                        ThreadPool::getInstance().addTask(clientSocket);
+                    }
                 }
             }
         }
@@ -311,12 +316,17 @@ int main() {
                 if (!NetworkManager::getInstance().getRunning()) {
                     continue;
                 }
-                
+
                 SOCKET clientSocket = events[i].data.fd;
-                // 将clientSocket交给线程池处理
-                ThreadPool::getInstance().addTask(clientSocket);
+                // 检查是否已有线程在处理此socket，防止重复添加
+                if (!NetworkManager::getInstance().isProcessing(clientSocket)) {
+                    // 标记为正在处理
+                    NetworkManager::getInstance().markProcessing(clientSocket, true);
+                    // 将clientSocket交给线程池处理
+                    ThreadPool::getInstance().addTask(clientSocket);
+                }
                 // 不立即从集合中移除，由线程处理完后根据keepAlive决定
-                
+
             }
         }
         
