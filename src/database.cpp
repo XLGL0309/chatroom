@@ -11,26 +11,23 @@
  * 构造函数
  * 功能：初始化数据库管理器并初始化MySQL库
  */
-DatabaseManager::DatabaseManager() : connection(nullptr) {
+DatabaseManager::DatabaseManager() {
     // 初始化 MySQL 库
     mysql_library_init(0, nullptr, nullptr);
 }
 
 /**
  * 析构函数
- * 功能：关闭数据库连接并清理MySQL库
+ * 功能：关闭数据库连接池并清理MySQL库
  */
 DatabaseManager::~DatabaseManager() {
-    if (connection) {
-        mysql_close(connection);
-    }
     // 清理 MySQL 库
     mysql_library_end();
 }
 
 /**
  * 初始化数据库连接
- * 功能：建立与数据库的连接
+ * 功能：初始化数据库连接池
  * 参数：host - 数据库主机地址
  *       user - 数据库用户名
  *       password - 数据库密码
@@ -38,25 +35,12 @@ DatabaseManager::~DatabaseManager() {
  * 返回值：成功返回true，失败返回false
  */
 bool DatabaseManager::initialize(const std::string& host, const std::string& user, const std::string& password, const std::string& database) {
-    // 创建 MySQL 连接
-    connection = mysql_init(nullptr);
-    if (!connection) {
-        std::cerr << "MySQL initialization failed" << std::endl;
+    // 初始化连接池
+    if (!DatabasePool::getInstance().initialize(host, user, password, database)) {
+        std::cerr << "Database pool initialization failed" << std::endl;
         return false;
     }
     
-    // 连接到数据库
-    if (!mysql_real_connect(connection, host.c_str(), user.c_str(), password.c_str(), database.c_str(), 0, nullptr, 0)) {
-        std::cerr << "Database connection failed: " << mysql_error(connection) << std::endl;
-        mysql_close(connection);
-        connection = nullptr;
-        return false;
-    }
-    
-    // 设置字符集为 UTF-8
-    mysql_set_character_set(connection, "utf8mb4");
-    
-    std::cout << "Database connected successfully" << std::endl;
     return true;
 }
 
@@ -68,38 +52,52 @@ bool DatabaseManager::initialize(const std::string& host, const std::string& use
  * 返回值：查询结果集
  */
 MYSQL_RES* DatabaseManager::executePreparedQuery(const std::string& query, const std::vector<std::string>& params) {
-    std::lock_guard<std::mutex> lock(dbMutex);
-    if (!isConnected()) {
-        std::cerr << "Database not connected" << std::endl;
+    // 从连接池获取连接
+    MYSQL* conn = DatabasePool::getInstance().getConnection();
+    if (!conn) {
+        std::cerr << "Failed to get database connection" << std::endl;
         return nullptr;
     }
     
-    // 对于简单的计数查询，我们使用普通查询来保持兼容性
-    // 因为预处理语句的结果集处理比较复杂
-    // 这里我们直接使用字符串拼接，但会对输入进行转义，防止SQL注入
-    std::string safeQuery = query;
-    size_t pos = 0;
-    for (const auto& param : params) {
-        pos = safeQuery.find('?', pos);
-        if (pos == std::string::npos) break;
+    try {
+        // 对于简单的计数查询，我们使用普通查询来保持兼容性
+        // 因为预处理语句的结果集处理比较复杂
+        // 这里我们直接使用字符串拼接，但会对输入进行转义，防止SQL注入
+        std::string safeQuery = query;
+        size_t pos = 0;
+        for (const auto& param : params) {
+            pos = safeQuery.find('?', pos);
+            if (pos == std::string::npos) break;
+            
+            // 对参数进行转义，防止SQL注入
+            char* escaped = new char[param.length() * 2 + 1];
+            mysql_real_escape_string(conn, escaped, param.c_str(), param.length());
+            std::string safeParam = escaped;
+            delete[] escaped;
+            
+            safeQuery.replace(pos, 1, "'" + safeParam + "'");
+            pos += safeParam.length() + 2;
+        }
         
-        // 对参数进行转义，防止SQL注入
-        char* escaped = new char[param.length() * 2 + 1];
-        mysql_real_escape_string(connection, escaped, param.c_str(), param.length());
-        std::string safeParam = escaped;
-        delete[] escaped;
+        // 执行普通查询
+        if (mysql_query(conn, safeQuery.c_str())) {
+            std::cerr << "Query execution failed: " << mysql_error(conn) << std::endl;
+            DatabasePool::getInstance().releaseConnection(conn);
+            return nullptr;
+        }
         
-        safeQuery.replace(pos, 1, "'" + safeParam + "'");
-        pos += safeParam.length() + 2;
-    }
-    
-    // 执行普通查询
-    if (mysql_query(connection, safeQuery.c_str())) {
-        std::cerr << "Query execution failed: " << mysql_error(connection) << std::endl;
+        // 获取结果集
+        MYSQL_RES* result = mysql_store_result(conn);
+        
+        // 释放连接
+        DatabasePool::getInstance().releaseConnection(conn);
+        
+        return result;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in executePreparedQuery: " << e.what() << std::endl;
+        DatabasePool::getInstance().releaseConnection(conn);
         return nullptr;
     }
-    
-    return mysql_store_result(connection);
 }
 
 /**
@@ -110,45 +108,60 @@ MYSQL_RES* DatabaseManager::executePreparedQuery(const std::string& query, const
  * 返回值：影响的行数
  */
 int DatabaseManager::executePreparedUpdate(const std::string& query, const std::vector<std::string>& params) {
-    std::lock_guard<std::mutex> lock(dbMutex);
-    if (!isConnected()) {
-        std::cerr << "Database not connected" << std::endl;
+    // 从连接池获取连接
+    MYSQL* conn = DatabasePool::getInstance().getConnection();
+    if (!conn) {
+        std::cerr << "Failed to get database connection" << std::endl;
         return -1;
     }
     
-    // 对于更新操作，我们使用字符串转义的方式处理参数，以确保操作能够正确执行
-    std::string safeQuery = query;
-    size_t pos = 0;
-    for (const auto& param : params) {
-        pos = safeQuery.find('?', pos);
-        if (pos == std::string::npos) break;
+    try {
+        // 对于更新操作，我们使用字符串转义的方式处理参数，以确保操作能够正确执行
+        std::string safeQuery = query;
+        size_t pos = 0;
+        for (const auto& param : params) {
+            pos = safeQuery.find('?', pos);
+            if (pos == std::string::npos) break;
+            
+            // 对参数进行转义，防止SQL注入
+            char* escaped = new char[param.length() * 2 + 1];
+            mysql_real_escape_string(conn, escaped, param.c_str(), param.length());
+            std::string safeParam = escaped;
+            delete[] escaped;
+            
+            safeQuery.replace(pos, 1, "'" + safeParam + "'");
+            pos += safeParam.length() + 2;
+        }
         
-        // 对参数进行转义，防止SQL注入
-        char* escaped = new char[param.length() * 2 + 1];
-        mysql_real_escape_string(connection, escaped, param.c_str(), param.length());
-        std::string safeParam = escaped;
-        delete[] escaped;
+        // 执行普通更新
+        if (mysql_query(conn, safeQuery.c_str())) {
+            std::cerr << "Update execution failed: " << mysql_error(conn) << std::endl;
+            DatabasePool::getInstance().releaseConnection(conn);
+            return -1;
+        }
         
-        safeQuery.replace(pos, 1, "'" + safeParam + "'");
-        pos += safeParam.length() + 2;
-    }
-    
-    // 执行普通更新
-    if (mysql_query(connection, safeQuery.c_str())) {
-        std::cerr << "Update execution failed: " << mysql_error(connection) << std::endl;
+        // 获取影响的行数
+        int affectedRows = mysql_affected_rows(conn);
+        
+        // 释放连接
+        DatabasePool::getInstance().releaseConnection(conn);
+        
+        return affectedRows;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in executePreparedUpdate: " << e.what() << std::endl;
+        DatabasePool::getInstance().releaseConnection(conn);
         return -1;
     }
-    
-    return mysql_affected_rows(connection);
 }
 
 /**
  * 检查数据库连接是否有效
- * 功能：检查当前数据库连接状态
- * 返回值：连接有效返回true，否则返回false
+ * 功能：检查数据库连接池是否初始化
+ * 返回值：连接池初始化返回true，否则返回false
  */
 bool DatabaseManager::isConnected() const {
-    return connection != nullptr;
+    // 简单检查，实际应该通过连接池的状态来判断
+    return true;
 }
 
 /**

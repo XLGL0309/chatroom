@@ -11,6 +11,7 @@
 #include <mutex>
 #include <mysql.h>
 #include <vector>
+#include "dbpool.h"
 
 /**
  * 数据库管理器类
@@ -19,8 +20,6 @@
  */
 class DatabaseManager {
 private:
-    // 数据库连接
-    MYSQL* connection;
     // 数据库操作的互斥锁
     std::mutex dbMutex;
     
