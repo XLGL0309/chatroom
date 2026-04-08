@@ -39,38 +39,44 @@
 - **并发处理**：线程池（生产者-消费者模式）
 - **实时通信**：长轮询（Long Polling）
 - **设计模式**：单例模式（懒汉式）
+- **数据库连接池**：管理数据库连接，提高性能
+- **跨平台**：支持Windows和Linux平台
 
 ## 项目结构
 
 ```
 chatroom/
-├── main.cpp              # 主入口：服务启动、网络事件监听、连接分发
-├── include/              # 头文件目录
-│   ├── config.h          # 配置管理：读取config.ini，提供配置项接口
-│   ├── database.h        # 数据库管理：MySQL连接、参数化查询执行
-│   ├── message.h         # 消息管理：消息存储、查询
-│   ├── network.h         # 网络通信：Socket初始化、跨平台兼容、客户端连接处理
-│   ├── threadpool.h      # 线程池：生产者-消费者模式，任务分发
-│   ├── user.h            # 用户管理：用户注册、登录验证
-│   ├── utils.h           # 工具函数：HTML转义、字符串处理
-│   └── web.h             # Web处理：HTTP请求解析、响应生成、API接口
-├── src/                  # 源代码目录（与include一一对应）
+├── src/                  # 源代码目录
+│   ├── main.cpp          # 主入口：服务启动、网络事件监听、连接分发
 │   ├── config.cpp        # 配置管理实现
 │   ├── database.cpp      # 数据库实现
+│   ├── dbpool.cpp        # 数据库连接池实现
 │   ├── message.cpp       # 消息实现
 │   ├── network.cpp       # 网络实现
 │   ├── threadpool.cpp    # 线程池实现
 │   ├── user.cpp          # 用户实现
 │   ├── utils.cpp         # 工具函数实现
 │   └── web.cpp           # Web实现
+├── include/              # 头文件目录
+│   ├── config.h          # 配置管理：读取config.ini，提供配置项接口
+│   ├── database.h        # 数据库管理：MySQL连接、参数化查询执行
+│   ├── dbpool.h          # 数据库连接池：管理数据库连接
+│   ├── message.h         # 消息管理：消息存储、查询
+│   ├── network.h         # 网络通信：Socket初始化、跨平台兼容、客户端连接处理
+│   ├── threadpool.h      # 线程池：生产者-消费者模式，任务分发
+│   ├── user.h            # 用户管理：用户注册、登录验证
+│   ├── utils.h           # 工具函数：HTML转义、字符串处理
+│   └── web.h             # Web处理：HTTP请求解析、响应生成、API接口
 ├── html/                 # 前端页面：登录/注册、聊天界面
 │   ├── login.html        # 登录/注册页面
 │   └── chat.html         # 聊天页面
+├── build/                # 构建目录
+│   └── clean.bat         # 清理脚本
 ├── config.ini            # 配置文件：服务器端口、数据库连接信息
 ├── CMakeLists.txt        # CMake配置：跨平台构建
 ├── init_database.sql     # 数据库初始化：建表、索引
 ├── make.bat              # Windows编译脚本
-├── clean.bat             # 清理脚本
+├── .gitignore            # Git忽略文件
 └── README.md             # 项目说明
 ```
 
@@ -367,6 +373,45 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
     MYSQL_RES* result = DatabaseManager::getInstance().executePreparedQuery(query, queryParams);
     // 处理查询结果...
     return messages;
+}
+```
+
+### 5. 数据库连接池（dbpool.cpp）
+
+核心逻辑：管理数据库连接，提高数据库操作性能
+
+```cpp
+// 获取数据库连接
+MYSQL* DBPool::getConnection() {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    
+    // 等待连接可用
+    m_cv.wait(lock, [this]() {
+        return !m_connections.empty() || !m_running;
+    });
+    
+    if (!m_running) {
+        return nullptr;
+    }
+    
+    MYSQL* conn = m_connections.front();
+    m_connections.pop();
+    return conn;
+}
+
+// 归还数据库连接
+void DBPool::returnConnection(MYSQL* conn) {
+    if (conn == nullptr) {
+        return;
+    }
+    
+    std::unique_lock<std::mutex> lock(m_mutex);
+    if (m_running) {
+        m_connections.push(conn);
+        m_cv.notify_one();
+    } else {
+        mysql_close(conn);
+    }
 }
 ```
 
