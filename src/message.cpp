@@ -109,29 +109,6 @@ std::vector<Message> MessageManager::getMessagesForUser(const std::string& usern
     return messages;
 }
 
-/**
- * 清理过期消息
- * 功能：清理所有超过24小时的消息
- */
-void MessageManager::cleanExpiredMessages() {
-    // 清理所有过期消息（超过24小时）
-    DatabaseManager::getInstance().executePreparedUpdate(
-        "DELETE FROM messages WHERE timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)",
-        {}
-    );
-}
-
-/**
- * 清理用户的过期消息
- * 功能：清理指定用户超过24小时的消息
- * 参数：username - 用户名
- */
-void MessageManager::cleanExpiredMessagesForUser(const std::string& username) {
-    // 使用预处理语句清理指定用户的过期消息（超过24小时）
-    std::string deleteQuery = "DELETE FROM messages WHERE to_user = ? AND timestamp < DATE_SUB(NOW(), INTERVAL 24 HOUR)";
-    std::vector<std::string> deleteParams = {username};
-    DatabaseManager::getInstance().executePreparedUpdate(deleteQuery, deleteParams);
-}
 
 /**
  * 获取单例实例

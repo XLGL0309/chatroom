@@ -69,18 +69,6 @@ public:
      */
     std::vector<Message> getMessagesForUser(const std::string& username);
     
-    /**
-     * 清理过期消息
-     * 功能：清理所有过期的消息
-     */
-    void cleanExpiredMessages();
-    
-    /**
-     * 清理用户的过期消息
-     * 功能：清理指定用户的过期消息
-     * 参数：username - 用户名
-     */
-    void cleanExpiredMessagesForUser(const std::string& username);
     
     /**
      * 获取单例实例
