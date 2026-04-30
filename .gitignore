@@ -1,6 +1,7 @@
 # 忽略 Claude 文件夹
 .claude
 CLAUDE.md
+# 忽略 VS Code 文件夹
 .vscode
 # 忽略可执行文件
 *.exe
