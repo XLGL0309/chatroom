@@ -4,6 +4,7 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
+                "${workspaceFolder}/include/**",
                 "E:/Microsoft Visual Studio/BuildTools/VC/Tools/MSVC/14.44.35207/include",
                 "E:/MySQL/MySQL Server 8.0/include",
                 "E:/MySQL/MySQL Server 8.0/include/mysql",
