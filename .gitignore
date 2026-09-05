@@ -21,3 +21,5 @@ CLAUDE.md
 build/*
 # 但保留 build/clean.bat 文件
 !build/clean.bat
+
+REASONIX.md
